@@ -79,6 +79,7 @@ OpenSteer::Clock::Clock (void)
     setPausedState (false);
     setAnimationMode (false);
     setVariableFrameRateMode (true);
+    setStepCount(0);
 
     // real "wall clock" time since launch
     totalRealTime = 0;
@@ -176,6 +177,7 @@ OpenSteer::Clock::update (void)
     // update total "manual advance" time
     totalAdvanceTime += newAdvanceTime;
 
+    if(totalSimulationTime > previousSimulationTime) stepCount++;
     // how much time has elapsed since the last simulation step?
     elapsedSimulationTime = (paused ?
                              newAdvanceTime :
@@ -229,7 +231,6 @@ OpenSteer::Clock::advanceSimulationTimeOneFrame (void)
                        getSmoothedFPS () :
                        getFixedFrameRate ());
     const float frameTime = 1 / fps;
-
     // bump advance time
     advanceSimulationTime (frameTime);
 
@@ -245,8 +246,10 @@ OpenSteer::Clock::advanceSimulationTime (const float seconds)
         /// @todo - throw? how to handle error conditions? Not by crashing an app!
         std::cerr << "negative arg to advanceSimulationTime - results will not be valid";
     }
-    else
+    else{
         newAdvanceTime += seconds;
+        stepCount++;
+    }
 }
 
 

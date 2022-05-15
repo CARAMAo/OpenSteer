@@ -87,7 +87,6 @@ namespace OpenSteer {
         // "wait" until next frame time
         void frameRateSync (void);
 
-
         // main clock modes: variable or fixed frame rate, real-time or animation
         // mode, running or paused.
     private:
@@ -103,6 +102,8 @@ namespace OpenSteer {
 
         // is simulation running or paused?
         bool paused;
+
+        
     public:
         int getFixedFrameRate (void) {return fixedFrameRate;}
         int setFixedFrameRate (int ffr) {return fixedFrameRate = ffr;}
@@ -118,7 +119,7 @@ namespace OpenSteer {
         bool getPausedState (void) {return paused;};
         bool setPausedState (bool newPS) {return paused = newPS;};
 
-
+        
         // clock keeps track of "smoothed" running average of recent frame rates.
         // When a fixed frame rate is used, a running average of "CPU load" is
         // kept (aka "non-wait time", the percentage of each frame time (time
@@ -173,6 +174,10 @@ namespace OpenSteer {
         // interval since last clock update,
         // exclusive of time spent waiting for frame boundary when targetFPS>0
         float elapsedNonWaitRealTime;
+
+        //number of simulation steps
+        int stepCount;
+
     public:
         float getTotalRealTime (void) {return totalRealTime;}
         float getTotalSimulationTime (void) {return totalSimulationTime;}
@@ -181,7 +186,8 @@ namespace OpenSteer {
         float getElapsedSimulationTime (void) {return elapsedSimulationTime;}
         float getElapsedRealTime (void) {return elapsedRealTime;}
         float getElapsedNonWaitRealTime (void) {return elapsedNonWaitRealTime;}
-
+        int getStepCount(void) { return stepCount;}
+        int setStepCount(int step){ return stepCount = step;}
 
     private:
         // "manually" advance clock by this amount on next update

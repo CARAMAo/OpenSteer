@@ -165,6 +165,7 @@ namespace OpenSteer {
                                 const float radius,
                                 std::vector<ContentType>& results)
             {
+                
                 // loop over all tokens
                 const float r2 = radius * radius;
                 for (tokenIterator i = bfpd->group.begin();
@@ -266,11 +267,11 @@ namespace OpenSteer {
                                 const float radius,
                                 std::vector<ContentType>& results)
             {
-                lqMapOverAllObjectsInLocality (lq, 
+                if(false){lqMapOverAllObjectsInLocality (lq, 
                                                center.x, center.y, center.z,
                                                radius,
                                                perNeighborCallBackFunction,
-                                               (void*)&results);
+                                               (void*)&results);}
             }
 
             // called by LQ for each clientObject in the specified neighborhood:

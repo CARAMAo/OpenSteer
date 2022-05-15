@@ -323,21 +323,21 @@ namespace {
     #ifndef NO_LQ_BIN_STATS
     size_t Boid::minNeighbors, Boid::maxNeighbors, Boid::totalNeighbors;
     #endif // NO_LQ_BIN_STATS
-
+    
 
     // ----------------------------------------------------------------------------
     // PlugIn for OpenSteerDemo
 
 
-    class BoidsPlugIn : public PlugIn
+    class BoidsngPlugIn : public PlugIn
     {
     public:
-        
-        const char* name (void) {return "Boids";}
 
-        float selectionOrderSortKey (void) {return 0.03f;}
+        const char* name (void) {return "Boidsng";}
 
-        virtual ~BoidsPlugIn() {} // be more "nice" to avoid a compiler warning
+        float selectionOrderSortKey (void) {return 0.003f;}
+
+        virtual ~BoidsngPlugIn() {} // be more "nice" to avoid a compiler warning
 
         void open (void)
         {
@@ -347,7 +347,7 @@ namespace {
 
             // make default-sized flock
             population = 0;
-            for (int i = 0; i < 200; i++) addBoidToFlock ();
+            for (int i = 0; i < 40000; i++) addBoidToFlock ();
 
             // initialize camera
             OpenSteerDemo::init3dCamera (*OpenSteerDemo::selectedVehicle);
@@ -368,12 +368,23 @@ namespace {
             Boid::maxNeighbors = Boid::totalNeighbors = 0;
             Boid::minNeighbors = std::numeric_limits<int>::max();
     #endif // NO_LQ_BIN_STATS
+            
 
             // update flock simulation for each boid
             for (iterator i = flock.begin(); i != flock.end(); i++)
             {
                 (**i).update (currentTime, elapsedTime);
             }
+
+
+            if(OpenSteer::OpenSteerDemo::clock.getStepCount()== 250){
+                std::cout<<"Real Time: "<<OpenSteer::OpenSteerDemo::clock.getTotalRealTime()<<"s"<<std::endl;
+                std::cout<<"Simulation Time: "<<OpenSteer::OpenSteerDemo::clock.getTotalSimulationTime()<<"s"<<std::endl;
+                reset();
+                OpenSteer::OpenSteerDemo::clock.setStepCount(0);
+                OpenSteer::OpenSteerDemo::clock.togglePausedState();
+            }
+            
         }
 
         void redraw (const float currentTime, const float elapsedTime)
@@ -456,6 +467,7 @@ namespace {
 
             // make camera jump immediately to new position
             OpenSteerDemo::camera.doNotSmoothNextMove ();
+
         }
 
         // for purposes of demonstration, allow cycling through various
@@ -784,7 +796,7 @@ namespace {
     };
 
 
-    BoidsPlugIn gBoidsPlugIn;
+    BoidsngPlugIn gBoidsngPlugIn;
 
 
 
