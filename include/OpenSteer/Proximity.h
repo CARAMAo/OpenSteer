@@ -267,11 +267,11 @@ namespace OpenSteer {
                                 const float radius,
                                 std::vector<ContentType>& results)
             {
-                if(false){lqMapOverAllObjectsInLocality (lq, 
+                lqMapOverAllObjectsInLocality (lq, 
                                                center.x, center.y, center.z,
                                                radius,
                                                perNeighborCallBackFunction,
-                                               (void*)&results);}
+                                               (void*)&results);
             }
 
             // called by LQ for each clientObject in the specified neighborhood:

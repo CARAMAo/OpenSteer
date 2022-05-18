@@ -427,7 +427,6 @@ namespace {
             case insideBox:
                 status << "inside a box" ; break;
             }
-            status << "ciao bello"<<std::endl;
             const float h = drawGetWindowHeight ();
             const Vec3 screenLocation (10, h-50, 0);
             draw2dTextAt2dLocation (status, screenLocation, gGray80, drawGetWindowWidth(), drawGetWindowHeight());

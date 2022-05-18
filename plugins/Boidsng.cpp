@@ -35,7 +35,9 @@
 //
 // ----------------------------------------------------------------------------
 
-
+    
+#include <chrono>
+#include <thread>
 #include <sstream>
 #include "OpenSteer/SimpleVehicle.h"
 #include "OpenSteer/OpenSteerDemo.h"
@@ -54,6 +56,9 @@
 #include <limits> // for numeric_limits::max()
 #endif // NO_LQ_BIN_STATS
 
+
+#define N_STEPS 1500
+#define debug false
 
 namespace {
 
@@ -79,6 +84,20 @@ namespace {
         // type for a flock: an STL vector of Boid pointers
         typedef std::vector<Boid*> groupType;
 
+        //*** flocking parameters
+        constexpr static float separationRadius =  5.0f;
+        constexpr static float separationAngle  = -0.707f;
+        constexpr static float separationWeight =  12.0f;
+
+        constexpr static float alignmentRadius = 7.5f;
+        constexpr static float alignmentAngle  = 0.7f;
+        constexpr static float alignmentWeight = 8.0f;
+
+        constexpr static float cohesionRadius = 9.0f;
+        constexpr static float cohesionAngle  = -0.15f;
+        constexpr static float cohesionWeight = 8.0f;
+
+        constexpr static float maxRadius = 9.0;
 
         // constructor
         Boid (ProximityDatabase& pd)
@@ -139,8 +158,12 @@ namespace {
         {
             OPENSTEER_UNUSED_PARAMETER(currentTime);
             
+            neighborCheck();
             // steer to flock and avoid obstacles if any
-            applySteeringForce (steerToFlock (), elapsedTime);
+            if(this == OpenSteerDemo::selectedVehicle)
+                std::cout<<serialNumber<<" has "<<neighbors.size()<<" neighbors"<<std::endl;
+
+            applySteeringForce ( steerToFlock(), elapsedTime);
 
             // wrap around to contrain boid within the spherical boundary
             sphericalWrapAround ();
@@ -150,41 +173,27 @@ namespace {
         }
 
 
-        // basic flocking
-        Vec3 steerToFlock (void)
-        {
-            // avoid obstacles if needed
-            // XXX this should probably be moved elsewhere
-            const Vec3 avoidance = steerToAvoidObstacles (1.0f, obstacles);
-            if (avoidance != Vec3::zero) return avoidance;
-
-            const float separationRadius =  5.0f;
-            const float separationAngle  = -0.707f;
-            const float separationWeight =  12.0f;
-
-            const float alignmentRadius = 7.5f;
-            const float alignmentAngle  = 0.7f;
-            const float alignmentWeight = 8.0f;
-
-            const float cohesionRadius = 9.0f;
-            const float cohesionAngle  = -0.15f;
-            const float cohesionWeight = 8.0f;
-
-            const float maxRadius = maxXXX (separationRadius,
-                                            maxXXX (alignmentRadius,
-                                                    cohesionRadius));
-
+        void neighborCheck(){
             // find all flockmates within maxRadius using proximity database
             neighbors.clear();
             proximityToken->findNeighbors (position(), maxRadius, neighbors);
 
-    #ifndef NO_LQ_BIN_STATS
+             #ifndef NO_LQ_BIN_STATS
             // maintain stats on max/min/ave neighbors per boids
             size_t count = neighbors.size();
             if (maxNeighbors < count) maxNeighbors = count;
             if (minNeighbors > count) minNeighbors = count;
             totalNeighbors += count;
-    #endif // NO_LQ_BIN_STATS
+            #endif // NO_LQ_BIN_STATS
+        }
+
+        // basic flocking
+        Vec3 steerToFlock ()
+        {
+            // avoid obstacles if needed
+            // XXX this should probably be moved elsewhere
+            const Vec3 avoidance = steerToAvoidObstacles (1.0f, obstacles);
+            if (avoidance != Vec3::zero) return avoidance;
 
             // determine each of the three component behaviors of flocking
             const Vec3 separation = steerForSeparation (separationRadius,
@@ -196,13 +205,15 @@ namespace {
             const Vec3 cohesion   = steerForCohesion   (cohesionRadius,
                                                         cohesionAngle,
                                                         neighbors);
-
+            
             // apply weights to components (save in variables for annotation)
             const Vec3 separationW = separation * separationWeight;
             const Vec3 alignmentW = alignment * alignmentWeight;
             const Vec3 cohesionW = cohesion * cohesionWeight;
 
-            // annotation
+            if(this == OpenSteerDemo::selectedVehicle && debug)
+            std::cout<<separationW + alignmentW + cohesionW<<std::endl<<maxRadius<<std::endl;
+            // annotation *** tmp disabled
             // const float s = 0.1;
             // annotationLine (position, position + (separationW * s), gRed);
             // annotationLine (position, position + (alignmentW  * s), gOrange);
@@ -323,7 +334,6 @@ namespace {
     #ifndef NO_LQ_BIN_STATS
     size_t Boid::minNeighbors, Boid::maxNeighbors, Boid::totalNeighbors;
     #endif // NO_LQ_BIN_STATS
-    
 
     // ----------------------------------------------------------------------------
     // PlugIn for OpenSteerDemo
@@ -347,7 +357,7 @@ namespace {
 
             // make default-sized flock
             population = 0;
-            for (int i = 0; i < 40000; i++) addBoidToFlock ();
+            for (int i = 0; i < 200; i++) addBoidToFlock ();
 
             // initialize camera
             OpenSteerDemo::init3dCamera (*OpenSteerDemo::selectedVehicle);
@@ -375,9 +385,12 @@ namespace {
             {
                 (**i).update (currentTime, elapsedTime);
             }
-
-
-            if(OpenSteer::OpenSteerDemo::clock.getStepCount()== 250){
+           
+           if(debug){
+            std::cout<<"Elapsed Real time:"<<OpenSteer::OpenSteerDemo::clock.getElapsedRealTime()<<std::endl;
+            std::cout<<"Elapsed Simulation time:"<<OpenSteer::OpenSteerDemo::clock.getElapsedSimulationTime()<<std::endl;
+           }
+            if(OpenSteer::OpenSteerDemo::clock.getStepCount()== N_STEPS){
                 std::cout<<"Real Time: "<<OpenSteer::OpenSteerDemo::clock.getTotalRealTime()<<"s"<<std::endl;
                 std::cout<<"Simulation Time: "<<OpenSteer::OpenSteerDemo::clock.getTotalSimulationTime()<<"s"<<std::endl;
                 reset();
@@ -406,7 +419,6 @@ namespace {
 
             // highlight selected vehicle
             OpenSteerDemo::drawCircleHighlightOnVehicle (selected, 1, gGray50);
-
             // display status in the upper left corner of the window
             std::ostringstream status;
             status << "[F1/F2] " << population << " boids";
@@ -438,9 +450,8 @@ namespace {
             case insideBox:
                 status << "inside a box" ; break;
             }
-            status << "ciao bello"<<std::endl;
             const float h = drawGetWindowHeight ();
-            const Vec3 screenLocation (10, h-50, 0);
+            const Vec3 screenLocation (10, h-50, 2);
             draw2dTextAt2dLocation (status, screenLocation, gGray80, drawGetWindowWidth(), drawGetWindowHeight());
 
             drawObstacles ();

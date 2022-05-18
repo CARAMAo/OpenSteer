@@ -762,7 +762,6 @@ inBoidNeighborhood (const AbstractVehicle& otherVehicle,
                     const float maxDistance,
                     const float cosMaxAngle)
 {   
-    return false;
     if (&otherVehicle == this)
     {
         return false;
@@ -807,7 +806,6 @@ steerForSeparation (const float maxDistance,
                     const float cosMaxAngle,
                     const AVGroup& flock)
 {
-    return Vec3::zero;
     // steering accumulator and count of neighbors, both initially zero
     Vec3 steering;
     int neighbors = 0;
@@ -857,7 +855,6 @@ steerForAlignment (const float maxDistance,
                    const float cosMaxAngle,
                    const AVGroup& flock)
 {
-    return Vec3::zero;
     // steering accumulator and count of neighbors, both initially zero
     Vec3 steering;
     int neighbors = 0;
@@ -895,7 +892,6 @@ steerForCohesion (const float maxDistance,
                   const float cosMaxAngle,
                   const AVGroup& flock)
 {
-    return Vec3::zero;
     // steering accumulator and count of neighbors, both initially zero
     Vec3 steering;
     int neighbors = 0;
