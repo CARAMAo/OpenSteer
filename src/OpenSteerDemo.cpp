@@ -104,6 +104,8 @@ int OpenSteer::OpenSteerDemo::phase = OpenSteer::OpenSteerDemo::overheadPhase;
 
 bool OpenSteer::enableAnnotation = true;
 
+double OpenSteer::OpenSteerDemo::neighborCheckTime = 0.;
+double OpenSteer::OpenSteerDemo::stepTime = 0.;
 
 // ----------------------------------------------------------------------------
 // XXX apparently MS VC6 cannot handle initialized static const members,

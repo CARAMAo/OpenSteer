@@ -39,6 +39,7 @@
 #include <chrono>
 #include <thread>
 #include <sstream>
+#include <fstream>
 #include "OpenSteer/SimpleVehicle.h"
 #include "OpenSteer/OpenSteerDemo.h"
 #include "OpenSteer/Proximity.h"
@@ -56,8 +57,8 @@
 #include <limits> // for numeric_limits::max()
 #endif // NO_LQ_BIN_STATS
 
-
-#define N_STEPS 1500
+#define N_BOIDS 10000
+#define N_STEPS 50
 #define debug false
 
 namespace {
@@ -82,7 +83,7 @@ namespace {
     public:
 
         // type for a flock: an STL vector of Boid pointers
-        typedef std::vector<Boid*> groupType;
+        typedef std::vector<Boid> groupType;
 
         //*** flocking parameters
         constexpr static float separationRadius =  5.0f;
@@ -98,6 +99,9 @@ namespace {
         constexpr static float cohesionWeight = 8.0f;
 
         constexpr static float maxRadius = 9.0;
+
+        double neighborCheckTime = 0.0;
+        double stepTime = 0.0;
 
         // constructor
         Boid (ProximityDatabase& pd)
@@ -157,19 +161,30 @@ namespace {
         void update (const float currentTime, const float elapsedTime)
         {
             OPENSTEER_UNUSED_PARAMETER(currentTime);
-            
-            neighborCheck();
-            // steer to flock and avoid obstacles if any
-            if(this == OpenSteerDemo::selectedVehicle)
-                std::cout<<serialNumber<<" has "<<neighbors.size()<<" neighbors"<<std::endl;
+            using std::chrono::high_resolution_clock;
 
+            high_resolution_clock::time_point neighbor_start = high_resolution_clock::now();
+            neighborCheck();
+            high_resolution_clock::time_point neighbor_end = high_resolution_clock::now();
+            // steer to flock and avoid obstacles if any
+
+            high_resolution_clock::time_point update_start = high_resolution_clock::now();
             applySteeringForce ( steerToFlock(), elapsedTime);
 
             // wrap around to contrain boid within the spherical boundary
             sphericalWrapAround ();
+            high_resolution_clock::time_point update_end = high_resolution_clock::now();
 
+            high_resolution_clock::time_point write_start = high_resolution_clock::now();
             // notify proximity database that our position has changed
             proximityToken->updateForNewPosition (position());
+            high_resolution_clock::time_point write_end = high_resolution_clock::now();
+
+            // if(OpenSteerDemo::selectedVehicle == this){
+                OpenSteerDemo::neighborCheckTime+=std::chrono::duration_cast<std::chrono::nanoseconds>(neighbor_end - neighbor_start).count() * 1e-6;
+                OpenSteerDemo::stepTime += std::chrono::duration_cast<std::chrono::nanoseconds>(update_end - update_start).count() * 1e-6;
+            // }
+
         }
 
 
@@ -212,7 +227,7 @@ namespace {
             const Vec3 cohesionW = cohesion * cohesionWeight;
 
             if(this == OpenSteerDemo::selectedVehicle && debug)
-            std::cout<<separationW + alignmentW + cohesionW<<std::endl<<maxRadius<<std::endl;
+                std::cout<<separationW + alignmentW + cohesionW<<std::endl<<maxRadius<<std::endl;
             // annotation *** tmp disabled
             // const float s = 0.1;
             // annotationLine (position, position + (separationW * s), gRed);
@@ -355,9 +370,12 @@ namespace {
             cyclePD = -1;
             nextPD ();
 
+            //switch to brute force pd
+            //nextPD();
+
             // make default-sized flock
             population = 0;
-            for (int i = 0; i < 200; i++) addBoidToFlock ();
+            for (int i = 0; i < N_BOIDS; i++) addBoidToFlock ();
 
             // initialize camera
             OpenSteerDemo::init3dCamera (*OpenSteerDemo::selectedVehicle);
@@ -370,6 +388,12 @@ namespace {
 
             // set up obstacles
             initObstacles ();
+
+            //log file
+            std::ofstream logFile;
+            logFile.open("log2.csv",std::ios::app);
+            logFile<<"N_Boids;Neighbor check avg time (ms);Step avg time (ms);"<<std::endl;
+            logFile.close();
         }
 
         void update (const float currentTime, const float elapsedTime)
@@ -383,7 +407,7 @@ namespace {
             // update flock simulation for each boid
             for (iterator i = flock.begin(); i != flock.end(); i++)
             {
-                (**i).update (currentTime, elapsedTime);
+                (*i).update (currentTime, elapsedTime);
             }
            
            if(debug){
@@ -396,6 +420,12 @@ namespace {
                 reset();
                 OpenSteer::OpenSteerDemo::clock.setStepCount(0);
                 OpenSteer::OpenSteerDemo::clock.togglePausedState();
+                std::ofstream logFile;
+                logFile.open("log2.csv",std::ios::app);
+                
+                logFile<<N_BOIDS<<";"<<OpenSteerDemo::neighborCheckTime/N_STEPS<<";"<<OpenSteerDemo::stepTime/N_STEPS<<";\n";
+
+                logFile.close();
             }
             
         }
@@ -412,7 +442,7 @@ namespace {
             OpenSteerDemo::updateCamera (currentTime, elapsedTime, selected);
 
             // draw each boid in flock
-            for (iterator i = flock.begin(); i != flock.end(); i++) (**i).draw ();
+            for (iterator i = flock.begin(); i != flock.end(); i++) (*i).draw ();
 
             // highlight vehicle nearest mouse
             OpenSteerDemo::drawCircleHighlightOnVehicle (nearMouse, 1, gGray70);
@@ -471,7 +501,7 @@ namespace {
         void reset (void)
         {
             // reset each boid in flock
-            for (iterator i = flock.begin(); i != flock.end(); i++) (**i).reset();
+            for (iterator i = flock.begin(); i != flock.end(); i++) (*i).reset();
 
             // reset camera position
             OpenSteerDemo::position3dCamera (*OpenSteerDemo::selectedVehicle);
@@ -512,7 +542,7 @@ namespace {
             }
 
             // switch each boid to new PD
-            for (iterator i=flock.begin(); i!=flock.end(); i++) (**i).newPD(*pd);
+            for (iterator i=flock.begin(); i!=flock.end(); i++) (*i).newPD(*pd);
 
             // delete old PD (if any)
             delete oldPD;
@@ -534,7 +564,7 @@ namespace {
         {
     #ifndef NO_LQ_BIN_STATS
             int min, max; float average;
-            Boid& aBoid = **(flock.begin());
+            Boid& aBoid = *(flock.begin());
             aBoid.proximityToken->getBinPopulationStats (min, max, average);
             std::cout << std::setprecision (2)
                       << std::setiosflags (std::ios::fixed);
@@ -565,9 +595,10 @@ namespace {
         void addBoidToFlock (void)
         {
             population++;
-            Boid* boid = new Boid (*pd);
+            Boid boid = Boid (*pd);
             flock.push_back (boid);
-            if (population == 1) OpenSteerDemo::selectedVehicle = boid;
+            std::cout<< flock.size()<< std::endl;
+            if (population == 1) OpenSteerDemo::selectedVehicle = &boid;
         }
 
         void removeBoidFromFlock (void)
@@ -575,16 +606,16 @@ namespace {
             if (population > 0)
             {
                 // save a pointer to the last boid, then remove it from the flock
-                const Boid* boid = flock.back();
+                const Boid boid = flock.back();
                 flock.pop_back();
                 population--;
 
                 // if it is OpenSteerDemo's selected vehicle, unselect it
-                if (boid == OpenSteerDemo::selectedVehicle)
-                    OpenSteerDemo::selectedVehicle = NULL;
+                // if (boid == (Boid) *OpenSteerDemo::selectedVehicle)
+                //     OpenSteerDemo::selectedVehicle = NULL;
 
                 // delete the Boid
-                delete boid;
+                delete &boid;
             }
         }
 
@@ -593,7 +624,7 @@ namespace {
 
         // flock: a group (STL vector) of pointers to all boids
         Boid::groupType flock;
-        typedef Boid::groupType::const_iterator iterator;
+        typedef Boid::groupType::iterator iterator;
 
         // pointer to database used to accelerate proximity queries
         ProximityDatabase* pd;

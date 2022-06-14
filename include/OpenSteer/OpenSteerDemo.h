@@ -71,6 +71,8 @@ namespace OpenSteer {
         // camera automatically tracks selected vehicle
         static Camera camera;
 
+        static double neighborCheckTime;
+        static double stepTime;
         // ------------------------------------------ addresses of selected objects
 
         // currently selected plug-in (user can choose or cycle through them)
