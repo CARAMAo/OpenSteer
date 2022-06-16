@@ -94,7 +94,8 @@ set(OpenSteer_Misc
    plugins/Pedestrian.cpp
    plugins/PedestriansWalkingAnEight.cpp
    plugins/Soccer.cpp
-   plugins/Boidsng.cpp)
+   plugins/BoidsBaseline.cpp
+   plugins/BoidsOpt.cpp)
 
 set(OpenSteer_Tests
    test/PolylineSegmentedPathTest.cpp

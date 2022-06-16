@@ -72,7 +72,7 @@ namespace OpenSteer {
 
         // constructor
         AnnotationMixin ();
-
+        
         // destructor
         virtual ~AnnotationMixin ();
 

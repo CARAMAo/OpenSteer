@@ -57,7 +57,7 @@
 #include <limits> // for numeric_limits::max()
 #endif // NO_LQ_BIN_STATS
 
-#define N_BOIDS 10000
+#define N_BOIDS 5000
 #define N_STEPS 50
 #define debug false
 
@@ -83,7 +83,7 @@ namespace {
     public:
 
         // type for a flock: an STL vector of Boid pointers
-        typedef std::vector<Boid> groupType;
+        typedef std::vector<Boid*> groupType;
 
         //*** flocking parameters
         constexpr static float separationRadius =  5.0f;
@@ -354,15 +354,15 @@ namespace {
     // PlugIn for OpenSteerDemo
 
 
-    class BoidsngPlugIn : public PlugIn
+    class BoidsBaselinePlugIn : public PlugIn
     {
     public:
 
-        const char* name (void) {return "Boidsng";}
+        const char* name (void) {return "BoidsBaseline";}
 
-        float selectionOrderSortKey (void) {return 0.003f;}
+        float selectionOrderSortKey (void) {return 0.03f;}
 
-        virtual ~BoidsngPlugIn() {} // be more "nice" to avoid a compiler warning
+        virtual ~BoidsBaselinePlugIn() {} // be more "nice" to avoid a compiler warning
 
         void open (void)
         {
@@ -407,7 +407,7 @@ namespace {
             // update flock simulation for each boid
             for (iterator i = flock.begin(); i != flock.end(); i++)
             {
-                (*i).update (currentTime, elapsedTime);
+                (**i).update (currentTime, elapsedTime);
             }
            
            if(debug){
@@ -442,7 +442,7 @@ namespace {
             OpenSteerDemo::updateCamera (currentTime, elapsedTime, selected);
 
             // draw each boid in flock
-            for (iterator i = flock.begin(); i != flock.end(); i++) (*i).draw ();
+            for (iterator i = flock.begin(); i != flock.end(); i++) (**i).draw ();
 
             // highlight vehicle nearest mouse
             OpenSteerDemo::drawCircleHighlightOnVehicle (nearMouse, 1, gGray70);
@@ -501,7 +501,7 @@ namespace {
         void reset (void)
         {
             // reset each boid in flock
-            for (iterator i = flock.begin(); i != flock.end(); i++) (*i).reset();
+            for (iterator i = flock.begin(); i != flock.end(); i++) (**i).reset();
 
             // reset camera position
             OpenSteerDemo::position3dCamera (*OpenSteerDemo::selectedVehicle);
@@ -542,7 +542,7 @@ namespace {
             }
 
             // switch each boid to new PD
-            for (iterator i=flock.begin(); i!=flock.end(); i++) (*i).newPD(*pd);
+            for (iterator i=flock.begin(); i!=flock.end(); i++) (**i).newPD(*pd);
 
             // delete old PD (if any)
             delete oldPD;
@@ -564,7 +564,7 @@ namespace {
         {
     #ifndef NO_LQ_BIN_STATS
             int min, max; float average;
-            Boid& aBoid = *(flock.begin());
+            Boid& aBoid = **(flock.begin());
             aBoid.proximityToken->getBinPopulationStats (min, max, average);
             std::cout << std::setprecision (2)
                       << std::setiosflags (std::ios::fixed);
@@ -595,10 +595,9 @@ namespace {
         void addBoidToFlock (void)
         {
             population++;
-            Boid boid = Boid (*pd);
+            Boid* boid = new Boid (*pd);
             flock.push_back (boid);
-            std::cout<< flock.size()<< std::endl;
-            if (population == 1) OpenSteerDemo::selectedVehicle = &boid;
+            if (population == 1) OpenSteerDemo::selectedVehicle = boid;
         }
 
         void removeBoidFromFlock (void)
@@ -606,16 +605,16 @@ namespace {
             if (population > 0)
             {
                 // save a pointer to the last boid, then remove it from the flock
-                const Boid boid = flock.back();
+                const Boid* boid = flock.back();
                 flock.pop_back();
                 population--;
 
                 // if it is OpenSteerDemo's selected vehicle, unselect it
-                // if (boid == (Boid) *OpenSteerDemo::selectedVehicle)
-                //     OpenSteerDemo::selectedVehicle = NULL;
+                if (boid == OpenSteerDemo::selectedVehicle)
+                    OpenSteerDemo::selectedVehicle = NULL;
 
                 // delete the Boid
-                delete &boid;
+                delete boid;
             }
         }
 
@@ -838,7 +837,7 @@ namespace {
     };
 
 
-    BoidsngPlugIn gBoidsngPlugIn;
+    BoidsBaselinePlugIn gBoidsBaselinePlugIn;
 
 
 
