@@ -73,7 +73,7 @@ namespace OpenSteer {
 
         // groups of (pointers to) abstract vehicles, and iterators over them
         typedef std::vector<AbstractVehicle*> group;
-        typedef group::const_iterator iterator;    
+        typedef group::const_iterator iterator;
 
         // predict position of this vehicle at some time in the future
         // (assumes velocity remains constant)

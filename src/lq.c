@@ -331,7 +331,7 @@ void lqUpdateForNewLocation  (lqInternalDB* lq,
 	float distanceSquared = (dx * dx) + (dy * dy) + (dz * dz);    \
                                                                       \
 	/* apply function if client object within sphere */           \
-	if (distanceSquared < radiusSquared)                          \
+	if (distanceSquared > 0 && distanceSquared < radiusSquared)                          \
 	    (*func) (co->object, distanceSquared, state);             \
                                                                       \
 	/* consider next client object in bin list */                 \

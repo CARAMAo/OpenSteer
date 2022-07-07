@@ -70,7 +70,6 @@ namespace OpenSteer {
         virtual void findNeighbors (const Vec3& center,
                                     const float radius,
                                     std::vector<ContentType>& results) = 0;
-
 #ifndef NO_LQ_BIN_STATS
         // only meaningful for LQProximityDatabase, provide dummy default
         virtual void getBinPopulationStats (int& min, int& max, float& average)
@@ -106,6 +105,257 @@ namespace OpenSteer {
         // returns the number of tokens in the proximity database
         virtual int getPopulation (void) = 0;
     };
+
+
+
+    // ----------------------------------------------------------------------------
+
+
+        
+//     class AVProximityDatabase
+//     {
+//     public:
+
+//         // constructor
+//         AVProximityDatabase (const Vec3& center,
+//                              const Vec3& dimensions,
+//                              const Vec3& divisions)
+//         {
+//             const Vec3 halfsize (dimensions * 0.5f);
+//             origin = Vec3(center - halfsize);
+//             width = dimensions.x;
+//             height = dimensions.y;
+//             depth = dimensions.z;
+
+//             divx = divisions.x;
+//             divy = divisions.y;
+//             divz = divisions.z;
+
+//             int bincount = divx * divy * divz;
+//             bins.reserve(bincount);
+//             for(int i = 0; i < bincount ; i++){
+//                 bins.push_back(new Bin());
+//             }
+
+//             other = new Bin();
+//         }
+
+//         // destructor
+//         virtual ~AVProximityDatabase ()
+//         {
+//             // lqDeleteDatabase (lq);
+//             // av = NULL;
+//         }
+
+//         class Bin{
+//         public:
+//             Bin(){
+//                 size = 0;
+//                 x.reserve(100);
+//                 y.reserve(100);
+//                 z.reserve(100);
+//                 objects.reserve(100);
+//             }
+
+//             std::vector<float> x;
+//             std::vector<float> y;
+//             std::vector<float> z;
+//             std::vector<AbstractVehicle*> objects;
+//             int size;
+//         };
+
+//         // "token" to represent objects stored in the database
+//         class tokenType
+//         {
+//         public:
+
+//             // constructor
+//             tokenType (AbstractVehicle* parentObject, AVProximityDatabase* lqsd)
+//             {
+//                 av = lqsd;
+//                 Vec3 pos = parentObject->position();
+//                 Vec3 index = positionToIndex(pos);
+//                 int binID = (index.x * av->divy*av->divz) + (index.y * av->divz) + index.z;
+                
+//                 if(binID >= av->divx*av->divy*av->divz)
+//                     bin = av->other;
+//                 else
+//                     bin = av->bins[binID];
+
+//                 offset = bin->size;
+
+//                 //insert object in bin
+//                 bin->x.emplace_back(pos.x);
+//                 bin->y.emplace_back(pos.y);
+//                 bin->z.emplace_back(pos.z);
+//                 bin->objects.push_back(parentObject);
+//                 bin->size+=1;
+//             }
+            
+//             Vec3 positionToIndex(const Vec3& position){
+//                 Vec3 pos = position - av->origin;
+//                 int x = (pos.x / av->width) * av->divx;
+//                 int y = (pos.y / av->height) * av->divy;
+//                 int z = (pos.z / av->depth) * av->divz;
+                
+//                 return Vec3( clamp<int>(x,0,(int)av->divx),
+//                                 clamp<int>(y,0,(int)av->divy),
+//                                 clamp<int>(z,0,(int)av->divz) );
+//             }
+//             // destructor
+//             virtual ~tokenType (void)
+//             {
+//                 bin->x.erase( bin->x.begin() + offset);
+//                 bin->y.erase( bin->y.begin() + offset);
+//                 bin->z.erase( bin->z.begin() + offset);
+//                 bin->objects.erase( bin->objects.begin() + offset);
+//                 bin->size-=1;
+//             }
+
+//             // the client object calls this each time its position changes
+//             void updateForNewPosition (const Vec3& p)
+//             {
+//                 Vec3 index = positionToIndex(p);
+//                 int binID = (index.x * av->divy*av->divz) + (index.y * av->divz) + index.z;
+//                 Bin* otherBin;
+//                 if(binID >= av->divx*av->divy*av->divz)
+//                     otherBin = av->other;
+//                 else
+//                     otherBin = av->bins[binID];
+                
+//                 if( bin == otherBin){
+//                     bin->x[offset] = p.x;
+//                     bin->y[offset] = p.y;
+//                     bin->z[offset] = p.z;
+//                 }
+//                 else{
+//                     bin->x.erase(bin->x.begin() + offset);
+//                     bin->y.erase(bin->y.begin() + offset);
+//                     bin->z.erase(bin->z.begin() + offset);
+//                     bin->size-=1;
+//                     otherBin->objects.push_back( bin->objects[offset] );
+//                     bin->objects.erase(bin->objects.begin()+offset);
+//                     otherBin->x.push_back(p.x);
+//                     otherBin->y.push_back(p.y);
+//                     otherBin->z.push_back(p.z);
+//                     offset = otherBin->size;
+//                     otherBin->size+=1;
+//                     bin = otherBin;
+//                 }
+                
+                
+//             }
+
+//             // find all neighbors within the given sphere (as center and radius)
+//             void findNeighbors (const Vec3& center,
+//                                 const float radius,
+//                                 std::vector<AVPack*>& results)
+//             {
+//                 Vec3 binIndex = positionToIndex(center);
+//                 int minBinX = binIndex.x - (int) ((radius/av->width)* av->divx);
+//                 int minBinY = binIndex.y - (int) ((radius/av->height)* av->divy);
+//                 int minBinZ = binIndex.z - (int) ((radius/av->depth)* av->divz);
+//                 int maxBinX = binIndex.x + (int) ((radius/av->width)* av->divx);
+//                 int maxBinY = binIndex.y + (int) ((radius/av->height)* av->divy);
+//                 int maxBinZ = binIndex.z + (int) ((radius/av->depth)* av->divz);
+                
+//                 int slab = av->divy * av->divz;
+//                 int row = av->divz;
+//                 int istart = minBinX * slab;
+//                 int jstart = minBinY * row;
+//                 int kstart = minBinZ;
+//                 int iindex,jindex,kindex;
+//                 int i,j,k;
+//                 Bin* currBin;
+
+//                 __m256 centerX = _mm256_set1_ps(center.x);
+//                 __m256 centerY = _mm256_set1_ps(center.y);
+//                 __m256 centerZ = _mm256_set1_ps(center.z);
+
+//                 iindex = istart;
+
+//                 results.clear();
+//                 results.emplace_back(new AVPack());
+
+//                 for (i = minBinX; i <= maxBinX; i++)
+//                 {
+//                 /* loop for y bins across diameter of sphere */
+//                     jindex = jstart;
+//                     for (j = minBinY; j <= maxBinY; j++)
+//                     {
+//                         /* loop for z bins across diameter of sphere */
+//                         kindex = kstart;
+//                         for (k = minBinZ; k <= maxBinZ; k++)
+//                         {
+//                             currBin = av->other;
+                            
+//                             for(int c = 0; c < bin->size; c++){
+//                                 if(bin->objects[c] == bin->objects[offset]) continue;
+//                                 float dx = center.x - bin->x[c];
+//                                 float dy = center.y - bin->y[c];
+//                                 float dz = center.z - bin->z[c];
+
+//                                 float distanceSquared = (dx*dx) + (dy*dy) +(dz*dz);
+//                                 if( distanceSquared < radius*radius){
+//                                     if(results.back()->size() == PACKSIZE) results.emplace_back(new AVPack());
+//                                     results.back()->push(bin->objects[c]);
+//                                 }
+
+//                             }   
+
+//                             kindex+=1;
+//                         }
+//                         jindex += row;
+//                     }
+//                     iindex += slab;
+//                 }
+
+//             }
+
+// #ifndef NO_LQ_BIN_STATS
+//             // Get statistics about bin populations: min, max and
+//             // average of non-empty bins.
+//             void getBinPopulationStats (int& min, int& max, float& average)
+//             {
+                
+//             }
+// #endif // NO_LQ_BIN_STATS
+
+//         private:
+//             Bin* bin;
+//             int offset;
+//             AVProximityDatabase* av;
+//         };
+
+
+//         // allocate a token to represent a given client object in this database
+//         tokenType* allocateToken (AbstractVehicle* parentObject)
+//         {
+//             return new tokenType (parentObject, this);
+//         }
+
+//         // count the number of tokens currently in the database
+//         int getPopulation (void)
+//         {
+//             int count = 0;
+            
+//             return count;
+//         }
+        
+
+    
+    
+//     Vec3 origin;
+//     float width,height,depth;
+//     float divx,divy,divz;
+
+//     private:
+        
+//         std::vector<Bin*> bins;
+//         Bin* other;
+//     };
+
+
 
 
     // ----------------------------------------------------------------------------
@@ -286,6 +536,33 @@ namespace OpenSteer {
                 ctv& results = *((ctv*) clientQueryState);
                 results.push_back ((ContentType) clientObject);
             }
+
+            // find all neighbors within the given sphere (as center and radius)
+            void findNeighborsPack (const Vec3& center,
+                                const float radius,
+                                std::vector<AVPack*>& results)
+            {
+                lqMapOverAllObjectsInLocality (lq, 
+                                               center.x, center.y, center.z,
+                                               radius,
+                                               perNeighborPackCallBackFunction,
+                                               (void*)&results);
+            }
+
+            // called by LQ for each clientObject in the specified neighborhood:
+            // push that clientObject onto the ContentType vector in void*
+            // clientQueryState
+            // (parameter names commented out to prevent compiler warning from "-W")
+            static void perNeighborPackCallBackFunction  (void* clientObject,
+                                                      float /*distanceSquared*/,
+                                                      void* clientQueryState)
+            {
+                typedef std::vector<AVPack*> ctv;
+                ctv& results = *((ctv*) clientQueryState);
+                if(results.back()->size() == PACKSIZE) results.push_back(new AVPack());
+                results.back()->push((ContentType) clientObject);
+            }
+
 
 #ifndef NO_LQ_BIN_STATS
             // Get statistics about bin populations: min, max and

@@ -50,7 +50,7 @@
 #ifndef OPENSTEER_VEC3_H
 #define OPENSTEER_VEC3_H
 
-
+#include <sstream>
 #include "OpenSteer/Utilities.h"  // for interpolate, etc.
 
 
@@ -111,6 +111,12 @@ namespace OpenSteer {
             *this = Vec3 ((a.y * b.z) - (a.z * b.y),
                           (a.z * b.x) - (a.x * b.z),
                           (a.x * b.y) - (a.y * b.x));
+        }
+
+        std::string to_string(void) const {
+            std::ostringstream res;
+            res<<"("<<x<<","<<y<<","<<z<<")";
+            return res.str();
         }
 
         // assignment

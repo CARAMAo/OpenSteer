@@ -45,9 +45,10 @@
 
 int main (int argc, char **argv) 
 {
+
     // initialize OpenSteerDemo application
     OpenSteer::OpenSteerDemo::initialize ();
-
+   
     // initialize graphics
     OpenSteer::initializeGraphics (argc, argv);
 

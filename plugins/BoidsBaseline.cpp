@@ -57,9 +57,11 @@
 #include <limits> // for numeric_limits::max()
 #endif // NO_LQ_BIN_STATS
 
-#define N_BOIDS 5000
-#define N_STEPS 50
+#define N_BOIDS 8000
+#define N_STEPS 100
 #define debug false
+#define SELECTED 4
+#define base false
 
 namespace {
 
@@ -160,31 +162,24 @@ namespace {
         // per frame simulation update
         void update (const float currentTime, const float elapsedTime)
         {
-            OPENSTEER_UNUSED_PARAMETER(currentTime);
             using std::chrono::high_resolution_clock;
-
+            OPENSTEER_UNUSED_PARAMETER(currentTime);
             high_resolution_clock::time_point neighbor_start = high_resolution_clock::now();
             neighborCheck();
             high_resolution_clock::time_point neighbor_end = high_resolution_clock::now();
+
+            high_resolution_clock::time_point steering_start = high_resolution_clock::now();
             // steer to flock and avoid obstacles if any
-
-            high_resolution_clock::time_point update_start = high_resolution_clock::now();
             applySteeringForce ( steerToFlock(), elapsedTime);
-
+            high_resolution_clock::time_point steering_end = high_resolution_clock::now();
+        
             // wrap around to contrain boid within the spherical boundary
             sphericalWrapAround ();
-            high_resolution_clock::time_point update_end = high_resolution_clock::now();
-
-            high_resolution_clock::time_point write_start = high_resolution_clock::now();
             // notify proximity database that our position has changed
             proximityToken->updateForNewPosition (position());
-            high_resolution_clock::time_point write_end = high_resolution_clock::now();
 
-            // if(OpenSteerDemo::selectedVehicle == this){
-                OpenSteerDemo::neighborCheckTime+=std::chrono::duration_cast<std::chrono::nanoseconds>(neighbor_end - neighbor_start).count() * 1e-6;
-                OpenSteerDemo::stepTime += std::chrono::duration_cast<std::chrono::nanoseconds>(update_end - update_start).count() * 1e-6;
-            // }
-
+            OpenSteerDemo::neighborCheckTime+= std::chrono::duration_cast<std::chrono::nanoseconds>(neighbor_end - neighbor_start).count() * 1e-6;
+            OpenSteerDemo::stepTime+= std::chrono::duration_cast<std::chrono::nanoseconds>(steering_end - steering_start).count() * 1e-6;
         }
 
 
@@ -212,11 +207,13 @@ namespace {
 
             // determine each of the three component behaviors of flocking
             const Vec3 separation = steerForSeparation (separationRadius,
-                                                        separationAngle,
-                                                        neighbors);
+                                                     separationAngle,
+                                                    neighbors);
+
             const Vec3 alignment  = steerForAlignment  (alignmentRadius,
                                                         alignmentAngle,
                                                         neighbors);
+            
             const Vec3 cohesion   = steerForCohesion   (cohesionRadius,
                                                         cohesionAngle,
                                                         neighbors);
@@ -360,7 +357,7 @@ namespace {
 
         const char* name (void) {return "BoidsBaseline";}
 
-        float selectionOrderSortKey (void) {return 0.03f;}
+        float selectionOrderSortKey (void) {return base ? 0.00003f : 0.3f;}
 
         virtual ~BoidsBaselinePlugIn() {} // be more "nice" to avoid a compiler warning
 
@@ -388,11 +385,10 @@ namespace {
 
             // set up obstacles
             initObstacles ();
-
             //log file
             std::ofstream logFile;
-            logFile.open("log2.csv",std::ios::app);
-            logFile<<"N_Boids;Neighbor check avg time (ms);Step avg time (ms);"<<std::endl;
+            logFile.open("logbase.csv",std::ios::app);
+            logFile<<"N_Boids;Neighbor check avg time (ms);Steering avg time (ms);"<<std::endl;
             logFile.close();
         }
 
@@ -420,11 +416,13 @@ namespace {
                 reset();
                 OpenSteer::OpenSteerDemo::clock.setStepCount(0);
                 OpenSteer::OpenSteerDemo::clock.togglePausedState();
-                std::ofstream logFile;
-                logFile.open("log2.csv",std::ios::app);
-                
-                logFile<<N_BOIDS<<";"<<OpenSteerDemo::neighborCheckTime/N_STEPS<<";"<<OpenSteerDemo::stepTime/N_STEPS<<";\n";
+                std::cout<<"Steering Time (per step):"<<OpenSteerDemo::stepTime/N_STEPS<<"ms\n";
+                std::cout<<"Neighbor Check Time (per step):"<<OpenSteerDemo::neighborCheckTime/N_STEPS<<"ms\n";
 
+                //log file
+                std::ofstream logFile;
+                logFile.open("logbase.csv",std::ios::app);
+                logFile<<N_BOIDS<<";"<<OpenSteerDemo::neighborCheckTime/N_STEPS<<";"<<OpenSteerDemo::stepTime/N_STEPS<<";"<<std::endl;
                 logFile.close();
             }
             
@@ -597,7 +595,9 @@ namespace {
             population++;
             Boid* boid = new Boid (*pd);
             flock.push_back (boid);
-            if (population == 1) OpenSteerDemo::selectedVehicle = boid;
+            if (population == SELECTED + 1)
+                OpenSteerDemo::selectedVehicle = boid;
+            
         }
 
         void removeBoidFromFlock (void)
