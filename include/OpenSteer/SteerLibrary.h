@@ -48,7 +48,7 @@
 
 
 #include "OpenSteer/AbstractVehicle.h"
-#include "OpenSteer/AbstractVehiclePack.h"
+#include "OpenSteer/VehiclePack.h"
 #include "OpenSteer/Pathway.h"
 #include "OpenSteer/Obstacle.h"
 #include "OpenSteer/Utilities.h"
@@ -184,10 +184,11 @@ namespace OpenSteer {
         // ------------------------------------------------------------------------
         // used by boid behaviors
 
-        __m256 inBoidNeighborhood(AbstractVehiclePack& pack,
+        __m256 inBoidNeighborhood(VehiclePack& pack,
                                  const float minDistance,
                                  const float maxDistance,
-                                 const float cosMaxAngle);
+                                 const float cosMaxAngle,
+                                 const int offset);
 
         bool inBoidNeighborhood (const AbstractVehicle& otherVehicle,
                                  const float minDistance,
@@ -200,7 +201,7 @@ namespace OpenSteer {
 
         Vec3 steerForSeparation (const float maxDistance,
                                  const float cosMaxAngle,
-                                 const AVPackGroup& flock);
+                                 const VehiclePack& flock);
 
         Vec3 steerForSeparation (const float maxDistance,
                                  const float cosMaxAngle,
@@ -213,7 +214,7 @@ namespace OpenSteer {
 
         Vec3 steerForAlignment (const float maxDistance,
                                 const float cosMaxAngle,
-                                const AVPackGroup& flock);
+                                const VehiclePack& flock);
 
         Vec3 steerForAlignment (const float maxDistance,
                                 const float cosMaxAngle,
@@ -226,7 +227,7 @@ namespace OpenSteer {
 
         Vec3 steerForCohesion (const float maxDistance,
                                const float cosMaxAngle,
-                               const AVPackGroup& flock);
+                               const VehiclePack& flock);
 
         Vec3 steerForCohesion (const float maxDistance,
                                const float cosMaxAngle,
@@ -788,16 +789,12 @@ inline __m256 _mm256_dot_ps(__m256 x1, __m256 y1, __m256 z1,
 
 inline float _mm256_sumreduce_ps(__m256 a)
 {
-    __m128 sum128 = _mm_add_ps( _mm256_castps256_ps128(a),
-                                _mm256_extractf128_ps(a,1) );
-    
-    __m128 sum64 = _mm_add_ps( _mm_movehl_ps(sum128,sum128),
-                                sum128);
-
-    __m128 sum32 = _mm_add_ps( _mm_shuffle_ps(sum64,sum64,0x1),
-                                sum64);
-
-    return _mm_cvtss_f32(sum32);
+    __m128 l = _mm256_castps256_ps128(a);
+    __m128 h = _mm256_extractf128_ps(a, 1);
+    l = _mm_add_ps(l, h);
+    l = _mm_hadd_ps(l, l);
+    l = _mm_hadd_ps(l,l);
+    return _mm_cvtss_f32(l);
 }
 
 //vectorized behaviors
@@ -805,10 +802,11 @@ inline float _mm256_sumreduce_ps(__m256 a)
 template<class Super>
 __m256
 OpenSteer::SteerLibraryMixin<Super>::
-inBoidNeighborhood (AbstractVehiclePack& pack,
+inBoidNeighborhood (VehiclePack& pack,
                     const float minDistance,
                     const float maxDistance,
-                    const float cosMaxAngle)
+                    const float cosMaxAngle,
+                    const int offset)
 {   
     __m256 vMinDistanceSquared = _mm256_set1_ps( minDistance*minDistance);
     __m256 vMaxDistanceSquared = _mm256_set1_ps( maxDistance*maxDistance);
@@ -820,10 +818,9 @@ inBoidNeighborhood (AbstractVehiclePack& pack,
     //     return false;
     // }
 
-    Vec3Pack otherPositionPack = pack.position();
-    __m256 otherX = _mm256_load_ps(&otherPositionPack.x[0]);    
-    __m256 otherY = _mm256_load_ps(&otherPositionPack.y[0]);    
-    __m256 otherZ = _mm256_load_ps(&otherPositionPack.z[0]);
+    __m256 otherX = _mm256_load_ps(&pack.x[offset]);    
+    __m256 otherY = _mm256_load_ps(&pack.y[offset]);    
+    __m256 otherZ = _mm256_load_ps(&pack.z[offset]);
 
     Vec3  currPosition = position();
     __m256 currX = _mm256_set1_ps(currPosition.x);    
@@ -899,7 +896,7 @@ OpenSteer::Vec3
 OpenSteer::SteerLibraryMixin<Super>::
 steerForSeparation (const float maxDistance,
                     const float cosMaxAngle,
-                    const AVPackGroup& flock)
+                    const VehiclePack& flock)
 {
     // steering accumulator and count of neighbors, both initially zero
     Vec3 steering;
@@ -916,14 +913,13 @@ steerForSeparation (const float maxDistance,
     __m256 steeringZ = _mm256_setzero_ps(); 
 
    
-    for(AVPackIterator pack = flock.begin(); pack != flock.end(); ++pack){
-            __m256 mask = inBoidNeighborhood(**pack,radius()*3,maxDistance,cosMaxAngle); //replace with a mask
+    for(int i = 0; i < flock.size; i+= PACKSIZE){
+            __m256 mask = inBoidNeighborhood(flock,radius()*3,maxDistance,cosMaxAngle,i); //replace with a mask
         
-            Vec3Pack positionPack = (**pack).position();
             //load neighbors coordinates
-            __m256 currX = _mm256_load_ps(&positionPack.x[0]);
-            __m256 currY = _mm256_load_ps(&positionPack.y[0]);
-            __m256 currZ = _mm256_load_ps(&positionPack.z[0]);
+            __m256 currX = _mm256_load_ps(&flock.x[i]);
+            __m256 currY = _mm256_load_ps(&flock.y[i]);
+            __m256 currZ = _mm256_load_ps(&flock.z[i]);
 
             //calculate distance from neighbors positions to boid's position
             __m256 offsetX = _mm256_sub_ps(currX,boidX);
@@ -975,41 +971,42 @@ OpenSteer::Vec3
 OpenSteer::SteerLibraryMixin<Super>::
 steerForAlignment (const float maxDistance,
                    const float cosMaxAngle,
-                   const AVPackGroup& flock)
-{
-    // steering accumulator and count of neighbors, both initially zero
-    Vec3 steering;
-    int neighbors = 0;
+                   const VehiclePack& flock)
+{   
+    return Vec3::zero;
+    // // steering accumulator and count of neighbors, both initially zero
+    // Vec3 steering;
+    // int neighbors = 0;
 
-    __m256 steeringX = _mm256_setzero_ps();
-    __m256 steeringY = _mm256_setzero_ps();
-    __m256 steeringZ = _mm256_setzero_ps();
-    // for each of the other vehicles...
-    for (AVPackIterator pack = flock.begin(); pack != flock.end(); pack++)
-    {
-        __m256 mask = inBoidNeighborhood(**pack,radius()*3,maxDistance,cosMaxAngle);
-            // accumulate sum of neighbor's heading
-            Vec3Pack forward = (**pack).forward();
-            __m256 forwardX = _mm256_load_ps(&forward.x[0]);
-            __m256 forwardY = _mm256_load_ps(&forward.y[0]);
-            __m256 forwardZ = _mm256_load_ps(&forward.z[0]);
-            steeringX = _mm256_add_ps(steeringX,_mm256_blendv_ps(_mm256_setzero_ps(),forwardX,mask));
-            steeringY = _mm256_add_ps(steeringY,_mm256_blendv_ps(_mm256_setzero_ps(),forwardY,mask));            
-            steeringZ = _mm256_add_ps(steeringZ,_mm256_blendv_ps(_mm256_setzero_ps(),forwardZ,mask));
-            // count neighbors
-            neighbors += _mm256_sumreduce_ps( _mm256_and_ps(mask,_mm256_set1_ps(1.0)));
-    }
+    // __m256 steeringX = _mm256_setzero_ps();
+    // __m256 steeringY = _mm256_setzero_ps();
+    // __m256 steeringZ = _mm256_setzero_ps();
+    // // for each of the other vehicles...
+    // for (AVPackIterator pack = flock.begin(); pack != flock.end(); pack++)
+    // {
+    //     __m256 mask = inBoidNeighborhood(**pack,radius()*3,maxDistance,cosMaxAngle);
+    //         // accumulate sum of neighbor's heading
+    //         Vec3Pack forward = (**pack).forward();
+    //         __m256 forwardX = _mm256_load_ps(&forward.x[0]);
+    //         __m256 forwardY = _mm256_load_ps(&forward.y[0]);
+    //         __m256 forwardZ = _mm256_load_ps(&forward.z[0]);
+    //         steeringX = _mm256_add_ps(steeringX,_mm256_blendv_ps(_mm256_setzero_ps(),forwardX,mask));
+    //         steeringY = _mm256_add_ps(steeringY,_mm256_blendv_ps(_mm256_setzero_ps(),forwardY,mask));            
+    //         steeringZ = _mm256_add_ps(steeringZ,_mm256_blendv_ps(_mm256_setzero_ps(),forwardZ,mask));
+    //         // count neighbors
+    //         neighbors += _mm256_sumreduce_ps( _mm256_and_ps(mask,_mm256_set1_ps(1.0)));
+    // }
 
-    //rersulting steering vector is a reduction of the steering accumulators
-    steering = Vec3( _mm256_sumreduce_ps(steeringX),
-                     _mm256_sumreduce_ps(steeringY),
-                     _mm256_sumreduce_ps(steeringZ));
+    // //rersulting steering vector is a reduction of the steering accumulators
+    // steering = Vec3( _mm256_sumreduce_ps(steeringX),
+    //                  _mm256_sumreduce_ps(steeringY),
+    //                  _mm256_sumreduce_ps(steeringZ));
 
-    // divide by neighbors, subtract off current heading to get error-
-    // correcting direction, then normalize to pure direction
-    if (neighbors > 0) steering = ((steering / (float)neighbors) - forward()).normalize();
+    // // divide by neighbors, subtract off current heading to get error-
+    // // correcting direction, then normalize to pure direction
+    // if (neighbors > 0) steering = ((steering / (float)neighbors) - forward()).normalize();
 
-    return steering;
+    // return steering;
 }
 
 
@@ -1023,43 +1020,44 @@ OpenSteer::Vec3
 OpenSteer::SteerLibraryMixin<Super>::
 steerForCohesion (const float maxDistance,
                   const float cosMaxAngle,
-                  const AVPackGroup& flock)
+                  const VehiclePack& flock)
 {
-    // steering accumulator and count of neighbors, both initially zero
-    Vec3 steering;
-    int neighbors = 0;
+     return Vec3::zero;
+    // // steering accumulator and count of neighbors, both initially zero
+    // Vec3 steering;
+    // int neighbors = 0;
 
 
-    __m256 steeringX = _mm256_setzero_ps();
-    __m256 steeringY = _mm256_setzero_ps();
-    __m256 steeringZ = _mm256_setzero_ps();
+    // __m256 steeringX = _mm256_setzero_ps();
+    // __m256 steeringY = _mm256_setzero_ps();
+    // __m256 steeringZ = _mm256_setzero_ps();
 
-    // for each of the other vehicles...
-    for (AVPackIterator pack = flock.begin(); pack != flock.end(); pack++)
-    {
-        __m256 mask = inBoidNeighborhood(**pack,radius()*3,maxDistance,cosMaxAngle);
-            // accumulate sum of neighbor's positions
-            Vec3Pack position = (**pack).position();
-            __m256 positionX = _mm256_load_ps(&position.x[0]);
-            __m256 positionY = _mm256_load_ps(&position.y[0]);
-            __m256 positionZ = _mm256_load_ps(&position.z[0]);
-            steeringX = _mm256_add_ps(steeringX,_mm256_blendv_ps(_mm256_setzero_ps(),positionX,mask));
-            steeringY = _mm256_add_ps(steeringY,_mm256_blendv_ps(_mm256_setzero_ps(),positionY,mask));            
-            steeringZ = _mm256_add_ps(steeringZ,_mm256_blendv_ps(_mm256_setzero_ps(),positionZ,mask));
-            // count neighbors
-            // count neighbors
-            neighbors += _mm256_sumreduce_ps( _mm256_and_ps(mask,_mm256_set1_ps(1.0)));
+    // // for each of the other vehicles...
+    // for (AVPackIterator pack = flock.begin(); pack != flock.end(); pack++)
+    // {
+    //     __m256 mask = inBoidNeighborhood(**pack,radius()*3,maxDistance,cosMaxAngle);
+    //         // accumulate sum of neighbor's positions
+    //         Vec3Pack position = (**pack).position();
+    //         __m256 positionX = _mm256_load_ps(&position.x[0]);
+    //         __m256 positionY = _mm256_load_ps(&position.y[0]);
+    //         __m256 positionZ = _mm256_load_ps(&position.z[0]);
+    //         steeringX = _mm256_add_ps(steeringX,_mm256_blendv_ps(_mm256_setzero_ps(),positionX,mask));
+    //         steeringY = _mm256_add_ps(steeringY,_mm256_blendv_ps(_mm256_setzero_ps(),positionY,mask));            
+    //         steeringZ = _mm256_add_ps(steeringZ,_mm256_blendv_ps(_mm256_setzero_ps(),positionZ,mask));
+    //         // count neighbors
+    //         // count neighbors
+    //         neighbors += _mm256_sumreduce_ps( _mm256_and_ps(mask,_mm256_set1_ps(1.0)));
         
-    }
+    // }
 
-    steering = Vec3( _mm256_sumreduce_ps(steeringX),
-                     _mm256_sumreduce_ps(steeringY),
-                     _mm256_sumreduce_ps(steeringZ));
-    // divide by neighbors, subtract off current position to get error-
-    // correcting direction, then normalize to pure direction
-    if (neighbors > 0) steering = ((steering / (float)neighbors) - position()).normalize();
+    // steering = Vec3( _mm256_sumreduce_ps(steeringX),
+    //                  _mm256_sumreduce_ps(steeringY),
+    //                  _mm256_sumreduce_ps(steeringZ));
+    // // divide by neighbors, subtract off current position to get error-
+    // // correcting direction, then normalize to pure direction
+    // if (neighbors > 0) steering = ((steering / (float)neighbors) - position()).normalize();
 
-    return steering;
+    // return steering;
 
 
 }

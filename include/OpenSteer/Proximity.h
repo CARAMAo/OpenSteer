@@ -426,7 +426,8 @@ namespace OpenSteer {
                     const float d2 = offset.lengthSquared();
 
                     // push onto result vector when within given radius
-                    if (d2 < r2) results.push_back ((**i).object);
+                    if (d2 < r2) 
+                    results.push_back ((**i).object);
                 }
             }
 
@@ -536,33 +537,6 @@ namespace OpenSteer {
                 ctv& results = *((ctv*) clientQueryState);
                 results.push_back ((ContentType) clientObject);
             }
-
-            // find all neighbors within the given sphere (as center and radius)
-            void findNeighborsPack (const Vec3& center,
-                                const float radius,
-                                std::vector<AVPack*>& results)
-            {
-                lqMapOverAllObjectsInLocality (lq, 
-                                               center.x, center.y, center.z,
-                                               radius,
-                                               perNeighborPackCallBackFunction,
-                                               (void*)&results);
-            }
-
-            // called by LQ for each clientObject in the specified neighborhood:
-            // push that clientObject onto the ContentType vector in void*
-            // clientQueryState
-            // (parameter names commented out to prevent compiler warning from "-W")
-            static void perNeighborPackCallBackFunction  (void* clientObject,
-                                                      float /*distanceSquared*/,
-                                                      void* clientQueryState)
-            {
-                typedef std::vector<AVPack*> ctv;
-                ctv& results = *((ctv*) clientQueryState);
-                if(results.back()->size() == PACKSIZE) results.push_back(new AVPack());
-                results.back()->push((ContentType) clientObject);
-            }
-
 
 #ifndef NO_LQ_BIN_STATS
             // Get statistics about bin populations: min, max and

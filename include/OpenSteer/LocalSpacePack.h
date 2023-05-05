@@ -66,7 +66,6 @@
 
 #include "OpenSteer/Vec3Pack.h"
 #include "OpenSteer/Vec3Pack.h"
-#include "OpenSteer/Pack.h"
 // ----------------------------------------------------------------------------
 
 

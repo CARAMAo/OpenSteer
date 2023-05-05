@@ -73,6 +73,7 @@ namespace OpenSteer {
 
         static double neighborCheckTime;
         static double stepTime;
+        static double totalStepTime;
         // ------------------------------------------ addresses of selected objects
 
         // currently selected plug-in (user can choose or cycle through them)

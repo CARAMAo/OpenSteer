@@ -97,7 +97,7 @@ set(OpenSteer_Misc
    plugins/PedestriansWalkingAnEight.cpp
    plugins/Soccer.cpp
    plugins/BoidsBaseline.cpp
-   plugins/BoidsOpt.cpp)
+   plugins/BoidsNoGraphics.cpp)
 
 set(OpenSteer_Tests
    test/TestMain.cpp)
