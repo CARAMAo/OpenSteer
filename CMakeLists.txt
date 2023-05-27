@@ -53,8 +53,8 @@ set(OpenSteer_Headers
    include/OpenSteer/UnusedParameter.h
    include/OpenSteer/Utilities.h
    include/OpenSteer/Vec3.h
-   include/OpenSteer/Vec3Pack.h
-   include/OpenSteer/Vec3Utilities.h)
+   include/OpenSteer/Vec3Utilities.h
+   include/OpenSteer/PackedProximityDB.h)
 
 set(OpenSteer_Sources
    src/Camera.cpp
@@ -73,8 +73,8 @@ set(OpenSteer_Sources
    src/SimpleVehicle.cpp
    src/TerrainRayTest.cpp
    src/Vec3.cpp
-   src/Vec3Pack.cpp
-   src/Vec3Utilities.cpp)
+   src/Vec3Utilities.cpp
+   src/PackedProximityDB.cpp)
 
 set(OpenSteer_Misc
    third-party/glfw/deps/glad.c
@@ -102,7 +102,7 @@ set(OpenSteer_Misc
 set(OpenSteer_Tests
    test/TestMain.cpp)
 
-   SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -mavx -mavx2 -msse -msse2 -msse3")
+   SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -march=native")
 
 add_library(libopensteer STATIC ${OpenSteer_Headers} ${OpenSteer_Sources})
 target_include_directories(libopensteer PUBLIC include)

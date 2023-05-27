@@ -40,9 +40,8 @@
 #define OPENSTEER_ABSTRACTVEHICLEPACK_H
 
 
-#include "OpenSteer/LocalSpacePack.h"
 #include <array>
-#include "OpenSteer/Vec3Pack.h"
+#include <immintrin.h>
 
 // STL vector containers
 #include <vector>
@@ -51,27 +50,19 @@
 // ----------------------------------------------------------------------------
 
 namespace OpenSteer {
+
+    class Vec3Pack{
+        public:
+            __m256 x;
+            __m256 y;
+            __m256 z;
+    };
    
     class VehiclePack
     {
     public:
-        VehiclePack(int n){
-            x = new float[n];
-            y = new float[n];
-            z = new float[n];
-            size = n;
-        }
-
-        ~VehiclePack() { 
-            delete x;
-            delete y;
-            delete z;
-        }
-
-        float *x;
-        float *y;
-        float *z;
-        int size;
+        Vec3Pack position;
+        Vec3Pack forward;
     };
 
 

@@ -45,6 +45,7 @@
 
 #include <algorithm>
 #include <vector>
+#include <immintrin.h>
 #include "OpenSteer/Vec3.h"
 #include "OpenSteer/lq.h"   // XXX temp?
 
@@ -70,6 +71,10 @@ namespace OpenSteer {
         virtual void findNeighbors (const Vec3& center,
                                     const float radius,
                                     std::vector<ContentType>& results) = 0;
+
+        virtual void findNeighborsPack (const Vec3& center,
+                                    const float radius,
+                                    std::vector<VehiclePack>& pack) = 0;
 #ifndef NO_LQ_BIN_STATS
         // only meaningful for LQProximityDatabase, provide dummy default
         virtual void getBinPopulationStats (int& min, int& max, float& average)
@@ -431,6 +436,84 @@ namespace OpenSteer {
                 }
             }
 
+            void findNeighborsPack (const Vec3& center,
+                                const float radius,
+                                std::vector<VehiclePack>& pack)
+            {
+                
+                // loop over all tokens
+                const float r2 = radius * radius;
+                int count = 0;
+                alignas(32) float positionX[8];
+                alignas(32) float positionY[8];
+                alignas(32) float positionZ[8];
+
+                alignas(32) float forwardX[8];
+                alignas(32) float forwardY[8];
+                alignas(32) float forwardZ[8];
+
+                for (tokenIterator i = bfpd->group.begin();
+                     i != bfpd->group.end();
+                     i++)
+                {
+                    const Vec3 offset = center - (**i).position;
+                    const float d2 = offset.lengthSquared();
+
+                    // push onto result vector when within given radius
+                    if (d2 < r2){
+                        if(count>0 && count%8 == 0){
+                            VehiclePack vp;
+                            vp.position.x = _mm256_load_ps(positionX);
+                            vp.position.y = _mm256_load_ps(positionY);
+                            vp.position.z = _mm256_load_ps(positionZ);
+
+                            vp.forward.x = _mm256_load_ps(forwardX);
+                            vp.forward.y = _mm256_load_ps(forwardY);
+                            vp.forward.z = _mm256_load_ps(forwardZ);
+
+                            pack.push_back(vp);
+                        }
+
+                        Vec3 position = (**i).position;
+                        Vec3 forward = (**i).object->forward();
+
+                        positionX[count%8] = position.x;
+                        positionY[count%8] = position.y;
+                        positionZ[count%8] = position.z;
+
+                        forwardX[count%8] = forward.x;
+                        forwardY[count%8] = forward.y;
+                        forwardZ[count%8] = forward.z;
+                        count++;
+                        
+                    }
+                }
+
+                while(count%8 != 0){
+                    positionX[count%8] = center.x;
+                    positionY[count%8] = center.y;
+                    positionZ[count%8] = center.z;
+
+                    forwardX[count%8] = 1.0;
+                    forwardY[count%8] = 1.0;
+                    forwardZ[count%8] = 1.0;
+                    count++;
+                }
+                if(count > 0){
+                VehiclePack vp;
+                vp.position.x = _mm256_load_ps(positionX);
+                vp.position.y = _mm256_load_ps(positionY);
+                vp.position.z = _mm256_load_ps(positionZ);
+
+                vp.forward.x = _mm256_load_ps(forwardX);
+                vp.forward.y = _mm256_load_ps(forwardY);
+                vp.forward.z = _mm256_load_ps(forwardZ);
+
+                pack.push_back(vp);
+                }
+
+            }
+
         private:
             BruteForceProximityDatabase* bfpd;
             ContentType object;
@@ -524,6 +607,10 @@ namespace OpenSteer {
                                                perNeighborCallBackFunction,
                                                (void*)&results);
             }
+
+            void findNeighborsPack (const Vec3& center,
+                                const float radius,
+                                std::vector<VehiclePack>& pack){}
 
             // called by LQ for each clientObject in the specified neighborhood:
             // push that clientObject onto the ContentType vector in void*

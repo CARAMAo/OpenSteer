@@ -42,6 +42,7 @@
 #include "OpenSteer/Proximity.h"
 #include "OpenSteer/Color.h"
 #include "OpenSteer/UnusedParameter.h"
+#include "OpenSteer/PackedProximityDB.h"
 
 #ifdef WIN32
 // Windows defines these as macros :(
@@ -55,9 +56,10 @@
 #endif // NO_LQ_BIN_STATS
 
 
-#define N_BOIDS 1200
-#define N_STEPS 100
-#define STEP_INFO false
+#define N_BOIDS 16000
+#define N_STEPS 10
+#define STEP_INFO true
+#define VECT false
 
 namespace {
 
@@ -71,7 +73,7 @@ namespace {
 
     typedef OpenSteer::AbstractProximityDatabase<AbstractVehicle*> ProximityDatabase;
     typedef OpenSteer::AbstractTokenForProximityDatabase<AbstractVehicle*> ProximityToken;
-
+      PackedProximityDB* pack_db;
 
     // ----------------------------------------------------------------------------
 
@@ -178,10 +180,44 @@ namespace {
                                             maxXXX (alignmentRadius,
                                                     cohesionRadius));
 
-            // find all flockmates within maxRadius using proximity database
-            neighbors.clear();
-            proximityToken->findNeighbors (position(), maxRadius, neighbors);
+           // find all flockmates within maxRadius using proximity database
+           if(VECT){
+                soa_neighbors.clear();
+                pack_db->findNeighbors(position(),maxRadius,soa_neighbors);
 
+                const Vec3 separationS = steerForSeparation (separationRadius,
+                                                        separationAngle,
+                                                        soa_neighbors);
+
+                const Vec3 alignmentS  = steerForAlignment  (alignmentRadius,
+                                                        alignmentAngle,
+                                                        soa_neighbors);
+                const Vec3 cohesionS   = steerForCohesion   (cohesionRadius,
+                                                        cohesionAngle,
+                                                        soa_neighbors);
+
+            const Vec3 separationW = separationS * separationWeight;
+            const Vec3 alignmentW = alignmentS * alignmentWeight;
+            const Vec3 cohesionW = cohesionS * cohesionWeight;
+             return separationW + alignmentW + cohesionW;
+            }
+            else{
+                neighbors.clear();
+
+                high_resolution_clock::time_point aosstart = high_resolution_clock::now();
+                proximityToken->findNeighbors(position(), maxRadius, neighbors);
+                high_resolution_clock::time_point aosend = high_resolution_clock::now();
+            
+                // soa_neighbors.clear();
+                // high_resolution_clock::time_point soastart = high_resolution_clock::now();
+                // pack_db->findNeighbors(position(),soa_neighbors);
+                // high_resolution_clock::time_point soaend = high_resolution_clock::now();
+
+
+            // double durationaos = std::chrono::duration_cast<std::chrono::duration<double>>(aosend-aosstart).count();
+            // double durationsoa = std::chrono::duration_cast<std::chrono::duration<double>>(soaend-soastart).count();
+
+            
     #ifndef NO_LQ_BIN_STATS
             // maintain stats on max/min/ave neighbors per boids
             size_t count = neighbors.size();
@@ -190,6 +226,10 @@ namespace {
             totalNeighbors += count;
     #endif // NO_LQ_BIN_STATS
 
+            
+        
+          
+            // std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
             // determine each of the three component behaviors of flocking
             const Vec3 separation = steerForSeparation (separationRadius,
                                                         separationAngle,
@@ -200,6 +240,42 @@ namespace {
             const Vec3 cohesion   = steerForCohesion   (cohesionRadius,
                                                         cohesionAngle,
                                                         neighbors);
+            std::chrono::high_resolution_clock::time_point end =  std::chrono::high_resolution_clock::now();
+            
+
+            // double durationSteerAos = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+
+            // start = std::chrono::high_resolution_clock::now();
+            // // determine each of the three component behaviors of flocking
+            // const Vec3 separationS = steerForSeparation (separationRadius,
+            //                                             separationAngle,
+            //                                             soa_neighbors);
+
+            // const Vec3 alignmentS  = steerForAlignment  (alignmentRadius,
+            //                                             alignmentAngle,
+            //                                             soa_neighbors);
+            // const Vec3 cohesionS   = steerForCohesion   (cohesionRadius,
+            //                                             cohesionAngle,
+            //                                             soa_neighbors);
+            // end =  std::chrono::high_resolution_clock::now();
+            
+            
+            // double durationSteerSoa = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+            // if(serialNumber == 0){
+            //     std::cout<<"Step "<<OpenSteerDemo::clock.getStepCount()<<"\nSteer\nAos "<<durationSteerAos*1000<<"ms\tSoa "<<durationSteerSoa*1000<<"ms\t Speedup"<<durationSteerAos/durationSteerSoa<<"\n";
+                // std::cout<<"Neighbor Query\nAos "<<durationaos*1000<<"ms \t";
+                // std::cout<<"Soa "<<durationsoa*1000<<"ms \n";
+            //     std::cout<<neighbors.size()<<"\n";
+            //     std::cout<<"Separation\n";
+
+            //     std::cout<<separation<<"\t"<<separationS<<"\n";
+            //     std::cout<<"Alignment\n";
+
+            //     std::cout<<alignment<<"\t"<<alignmentS<<"\n";
+            //     std::cout<<"Cohesion\n";
+
+            //     std::cout<<cohesion<<"\t"<<cohesionS<<"\n\n";
+            // }
 
             // apply weights to components (save in variables for annotation)
             const Vec3 separationW = separation * separationWeight;
@@ -213,6 +289,7 @@ namespace {
             // annotationLine (position, position + (cohesionW   * s), gYellow);
 
             return separationW + alignmentW + cohesionW;
+            }
         }
 
 
@@ -291,9 +368,12 @@ namespace {
         // a pointer to this boid's interface object for the proximity database
         ProximityToken* proximityToken;
 
+        
         // allocate one and share amoung instances just to save memory usage
         // (change to per-instance allocation to be more MP-safe)
         static AVGroup neighbors;
+
+        static std::vector<VehiclePack> soa_neighbors;
 
         static float worldRadius;
 
@@ -320,10 +400,11 @@ namespace {
     #endif // NO_LQ_BIN_STATS
     };
 
-
     AVGroup Boid::neighbors;
+    std::vector<VehiclePack> Boid::soa_neighbors;
     float Boid::worldRadius = 50.0f;
     ObstacleGroup Boid::obstacles;
+
     #ifndef NO_LQ_BIN_STATS
     size_t Boid::minNeighbors, Boid::maxNeighbors, Boid::totalNeighbors;
     #endif // NO_LQ_BIN_STATS
@@ -346,13 +427,23 @@ namespace {
         void open (void)
         {
             // make the database used to accelerate proximity queries
-            cyclePD = 0;
+            cyclePD = -1;
             nextPD ();
 
             // make default-sized flock
             population = 0;
             for (int i = 0; i < N_BOIDS; i++) addBoidToFlock ();
+            float d = Boid::worldRadius*1.1f*2;
 
+            pack_db = new PackedProximityDB(Vec3(d,d,d),Vec3()-Vec3(d/2.,d/2.,d/2.),18.0f);
+
+            high_resolution_clock::time_point start = high_resolution_clock::now();
+            pack_db->update((AVGroup&)flock);
+            high_resolution_clock::time_point end = high_resolution_clock::now();
+
+            double duration = std::chrono::duration_cast<std::chrono::duration<double>>(end-start).count();
+
+            std::cout<<"Update duration "<<duration*1000.0<<"ms\n";
             // initialize camera
             OpenSteerDemo::init3dCamera (*OpenSteerDemo::selectedVehicle);
             OpenSteerDemo::camera.mode = Camera::cmFixed;
@@ -377,24 +468,28 @@ namespace {
             {
                 (**i).update (currentTime, elapsedTime);
             }
+            if(VECT){
+                pack_db->update((AVGroup&)flock);
+            }
             high_resolution_clock::time_point end = high_resolution_clock::now();
 
-            double stepTime =  std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() * 1e-6;
+            double stepTime =  std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
             
-            
+          
+
             if(OpenSteer::OpenSteerDemo::clock.getStepCount()== N_STEPS){
-                OpenSteerDemo::totalStepTime+= stepTime;
-                std::cout<<"Total sim time:"<<OpenSteerDemo::totalStepTime*1e-3<<"s"<<std::endl;
+                OpenSteerDemo::totalStepTime+= stepTime*1000;
+                std::cout<<"Total sim time:"<<OpenSteerDemo::totalStepTime<<"ms"<<std::endl;
                 std::cout<<"Avg Step:"<<OpenSteerDemo::totalStepTime/N_STEPS<<"ms\n";
                 reset();
                 OpenSteer::OpenSteerDemo::clock.setStepCount(0);
                 OpenSteer::OpenSteerDemo::clock.togglePausedState();
             }else if(!OpenSteerDemo::clock.getPausedState()){
-                OpenSteerDemo::totalStepTime+= stepTime;
+                OpenSteerDemo::totalStepTime+= stepTime*1000;
                 if(STEP_INFO){
-                std::cout<<"Step "<<OpenSteerDemo::clock.getStepCount()<<": "<<stepTime<<"ms"<<std::endl;
-                std::cout<<"Total sim time:"<<OpenSteerDemo::totalStepTime*1e-3<<"s"<<std::endl;
-                std::cout<<"Avg Step:"<<OpenSteerDemo::totalStepTime/N_STEPS<<"ms\n";
+                std::cout<<"Step "<<OpenSteerDemo::clock.getStepCount()<<": "<<stepTime*1000<<"ms"<<std::endl;
+                std::cout<<"Total sim time:"<<OpenSteerDemo::totalStepTime<<"ms"<<std::endl;
+                std::cout<<"Avg Step:"<<OpenSteerDemo::totalStepTime/(OpenSteerDemo::clock.getStepCount()+1)<<"ms\n";
                 std::cout<<"---\n";
                 }
             }
@@ -402,7 +497,28 @@ namespace {
 
         void redraw (const float currentTime, const float elapsedTime)
         {
-          
+          // selected vehicle (user can mouse click to select another)
+            AbstractVehicle* selected = OpenSteerDemo::selectedVehicle;
+
+            // vehicle nearest mouse (to be highlighted)
+            AbstractVehicle* nearMouse = OpenSteerDemo::vehicleNearestToMouse ();
+
+            // update camera
+            OpenSteerDemo::updateCamera (currentTime, elapsedTime, selected);
+
+            // draw each boid in flock
+            for (iterator i = flock.begin(); i != flock.end(); i++) (**i).draw ();
+
+            // highlight vehicle nearest mouse
+            OpenSteerDemo::drawCircleHighlightOnVehicle (nearMouse, 1, gGray70);
+
+            // highlight selected vehicle
+            OpenSteerDemo::drawCircleHighlightOnVehicle (selected, 1, gGray50);
+
+            
+            const float h = drawGetWindowHeight ();
+            const Vec3 screenLocation (10, h-50, 0);
+
             
         }
 
@@ -524,7 +640,7 @@ namespace {
 
         // pointer to database used to accelerate proximity queries
         ProximityDatabase* pd;
-
+        
         // keep track of current flock size
         int population;
 
@@ -534,7 +650,7 @@ namespace {
 
     };
 
-
+  
     BoidsNoGraphicsPlugIn gBoidsNoGraphicsPlugIn;
 
 
