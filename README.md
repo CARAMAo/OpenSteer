@@ -1,3 +1,17 @@
+HPC Project about vectorization of steering simulation using SIMD intrinsics (AVX2).
+
+This repo contains a modified version of the OpenSteer library, featuring two Boids simulations Plugins: BoidsBaseline and BoidsOpt (using AVX).
+
+You need cmake to build this project (use Release profile to build with -O3), after building you can launch from cmd line using the following options:
+
+  -opt                              run AVX version
+  -no-gui                           run without gui
+  -n <number-of-agents>             defaults to 800 if not specified
+  -s <number-of-steps>              defaults to 50 if not specified
+  -w <simulation-world-radius>      defaults to 50.0 if not specified
+  -q <neighborhood-query-radius>    defaults to 9.0 if not specified
+
+
 ![OpenSteer](doc/images/beta_250a.gif)
 
 # OpenSteer: Steering Behaviors for Autonomous Characters 
