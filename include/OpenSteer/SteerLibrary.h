@@ -826,7 +826,6 @@ inBoidNeighborhood (const VehiclePack& pack,
     __m256 offsetZ = _mm256_sub_ps(otherZ,currZ);
 
     __m256 vDistanceSquared = _mm256_fmadd_ps(offsetX,offsetX,_mm256_fmadd_ps(offsetY,offsetY,_mm256_mul_ps(offsetZ,offsetZ)));
-\
     
     __m256 distanceMask = _mm256_cmp_ps(vDistanceSquared,vMaxDistanceSquared,_MM_CMPINT_LE);
     if(_mm256_movemask_ps(distanceMask) == 0){

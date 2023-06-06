@@ -74,6 +74,14 @@ namespace OpenSteer {
         static double neighborCheckTime;
         static double stepTime;
         static double totalStepTime;
+
+        static int numAgents;
+        static int numSteps;
+        static float worldRadius;
+        static float queryRadius;
+
+        static bool gui;
+
         // ------------------------------------------ addresses of selected objects
 
         // currently selected plug-in (user can choose or cycle through them)
@@ -89,7 +97,7 @@ namespace OpenSteer {
         // initialize OpenSteerDemo
         //     XXX  if I switch from "totally static" to "singleton"
         //     XXX  class structure this becomes the constructor
-        static void initialize (void);
+        static void initialize (int argc,char **argv);
 
         // main update function: step simulation forward and redraw scene
         static void updateSimulationAndRedraw (void);

@@ -63,6 +63,8 @@ namespace OpenSteer {
     public:
         Vec3Pack position;
         Vec3Pack forward;
+        Vec3Pack acceleration;
+        __m256 speed;
     };
 
 

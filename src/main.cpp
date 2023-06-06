@@ -47,13 +47,19 @@ int main (int argc, char **argv)
 {
 
     // initialize OpenSteerDemo application
-    OpenSteer::OpenSteerDemo::initialize ();
-   
+    OpenSteer::OpenSteerDemo::initialize (argc, argv);
+    
+    if(OpenSteer::OpenSteerDemo::gui){
     // initialize graphics
     OpenSteer::initializeGraphics (argc, argv);
 
     // run the main event processing loop
     OpenSteer::runGraphics ();  
+    }else{
+        while(1){
+            OpenSteer::OpenSteerDemo::updateSimulationAndRedraw();
+        }
+    }
     return EXIT_SUCCESS;
 }
 

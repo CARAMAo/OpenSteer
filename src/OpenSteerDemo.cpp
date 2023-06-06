@@ -108,6 +108,11 @@ double OpenSteer::OpenSteerDemo::neighborCheckTime = 0.;
 double OpenSteer::OpenSteerDemo::stepTime = 0.;
 double OpenSteer::OpenSteerDemo::totalStepTime = 0.;
 
+int OpenSteer::OpenSteerDemo::numAgents = 800;
+int OpenSteer::OpenSteerDemo::numSteps = 0;
+float OpenSteer::OpenSteerDemo::worldRadius = 0.;
+float OpenSteer::OpenSteerDemo::queryRadius = 0.;
+bool OpenSteer::OpenSteerDemo::gui = true;
 // ----------------------------------------------------------------------------
 // XXX apparently MS VC6 cannot handle initialized static const members,
 // XXX so they have to be initialized not-inline.
@@ -125,25 +130,116 @@ namespace {
 
     void printPlugIn (OpenSteer::PlugIn& pi) {std::cout << " " << pi << std::endl;} // XXX
 
+    char* getCmdOption(char ** begin, char ** end, const std::string & option)
+    {
+        char ** itr = std::find(begin, end, option);
+        if (itr != end && ++itr != end)
+        {
+            return *itr;
+        }
+        return 0;
+    }
+
+    bool cmdOptionExists(char** begin, char** end, const std::string& option)
+    {
+        return std::find(begin, end, option) != end;
+    }
+
 } // anonymous namespace
 
 void 
-OpenSteer::OpenSteerDemo::initialize (void)
+OpenSteer::OpenSteerDemo::initialize (int argc,char** argv)
 {
-    // select the default PlugIn
-    selectDefaultPlugIn ();
+    
+    
+    
+        if(cmdOptionExists(argv,argv+argc,"-opt")){
+            OpenSteerDemo::selectedPlugIn = PlugIn::findByName("BoidsOpt");
+        }else{
+            OpenSteerDemo::selectedPlugIn = PlugIn::findByName("BoidsBaseline");
+        }
+        try{
+        if(cmdOptionExists(argv,argv+argc,"-n") && getCmdOption(argv,argv+argc,"-n")){
+            int nagents = std::stoi(getCmdOption(argv,argv+argc,"-n")); 
+            if(nagents){
+                if(nagents%8 != 0){
+                    std::cerr << "Agents number must be multiple of 8"<<'\n';
+                    exit(1);
+                }
+                numAgents=nagents;
+            }
+        }
+        }catch (std::invalid_argument const &ex) {
+            std::cerr << "Invalid agents number\n";
+            exit(1);
+        }
+
+        try{
+        if(cmdOptionExists(argv,argv+argc,"-s") && getCmdOption(argv,argv+argc,"-s")){
+            int nstep = std::stoi(getCmdOption(argv,argv+argc,"-s"));
+            if(nstep){
+                numSteps=nstep;
+            }
+        }
+        }catch (std::invalid_argument const &ex) {
+            std::cerr << "Invalid number of step\n";
+            exit(1);
+        }
+
+        try{
+        if(cmdOptionExists(argv,argv+argc,"-w") && getCmdOption(argv,argv+argc,"-w")){
+            float wradius = std::stof(getCmdOption(argv,argv+argc,"-w"));
+            if(wradius){
+                worldRadius=wradius;
+            }
+
+        }
+        }catch (std::invalid_argument const &ex) {
+            std::cerr << "Invalid world radius\n";
+            exit(1);
+        }
+
+        try{
+        if(cmdOptionExists(argv,argv+argc,"-q") && getCmdOption(argv,argv+argc,"-q")){
+            float qradius = std::stof(getCmdOption(argv,argv+argc,"-q"));
+            if(qradius){
+              
+                queryRadius=qradius;
+            }
+
+        }
+        }catch (std::invalid_argument const &ex) {
+            std::cerr << "Invalid neighbor query radius \n";
+            exit(1);
+        } 
+
+        if(cmdOptionExists(argv,argv+argc,"-h")){
+            std::cout<<"Available options:\n";
+            std::cout<<"-opt\trun AVX version\n";
+            std::cout<<"-no-gui\trun without gui\n";
+            std::cout<<"-n <number-of-agents>\tdefaults to 800 if not specified\n";
+            std::cout<<"-s <number-of-steps>\truns indefinitely if not specified\n";
+            std::cout<<"-w <simulation-environment-radius>\tdefaults to 50.0 if not specified\n";
+            std::cout<<"-q <neighborhood-query-radius>\tdefaults to 9.0 if not specified\n";
+            
+            exit(0);
+        }
+
+        if(cmdOptionExists(argv,argv+argc,"-no-gui")){
+            OpenSteerDemo::gui = false;
+        }
 
     {
         // XXX this block is for debugging purposes,
         // XXX should it be replaced with something permanent?
 
-        std::cout << std::endl << "Known plugins:" << std::endl;   // xxx?
-        PlugIn::applyToAll (printPlugIn);                          // xxx?
-        std::cout << std::endl;                                    // xxx?
+        // std::cout << std::endl << "Known plugins:" << std::endl;   // xxx?
+        // PlugIn::applyToAll (printPlugIn);                          // xxx?
+        // std::cout << std::endl;                                    // xxx?
 
-        // identify default PlugIn
-        if (!selectedPlugIn) errorExit ("no default PlugIn");
-        std::cout << std::endl << "Default plugin:" << std::endl;  // xxx?
+        // // identify default PlugIn
+        // if (!selectedPlugIn) errorExit ("no default PlugIn");
+        std::cout << std::endl << "Running plugin:" << std::endl;  // xxx?
         std::cout << " " << *selectedPlugIn << std::endl;          // xxx?
         std::cout << std::endl;                                    // xxx?
     }
@@ -171,10 +267,19 @@ OpenSteer::OpenSteerDemo::updateSimulationAndRedraw (void)
     // run selected PlugIn (with simulation's current time and step size)
     updateSelectedPlugIn (clock.getTotalSimulationTime (),
                           clock.getElapsedSimulationTime ());
+    
+    if(OpenSteerDemo::gui)
+        // redraw selected PlugIn (based on real time)
+        redrawSelectedPlugIn (clock.getTotalRealTime (),
+                            clock.getElapsedRealTime ());
 
-    // redraw selected PlugIn (based on real time)
-    redrawSelectedPlugIn (clock.getTotalRealTime (),
-                          clock.getElapsedRealTime ());
+    if(OpenSteerDemo::numSteps > 0 && clock.getStepCount() == OpenSteerDemo::numSteps && !clock.getPausedState() ){
+        std::cout<<OpenSteerDemo::numAgents<<";"
+        <<OpenSteerDemo::numSteps<<";"
+        << (OpenSteerDemo::worldRadius > 0.f ? OpenSteerDemo::worldRadius : 50.f)<<";"
+        <<(OpenSteerDemo::queryRadius  > 0.f ? OpenSteerDemo::queryRadius : 9.f) <<";"<<clock.getTotalSimulationTime()<<"\n";
+        OpenSteerDemo::exit(0);
+    }
 }
 
 

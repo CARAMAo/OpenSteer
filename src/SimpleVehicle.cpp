@@ -167,10 +167,10 @@ OpenSteer::SimpleVehicle::applySteeringForce (const Vec3& force,
                                               const float elapsedTime)
 {
 
-    const Vec3 adjustedForce = adjustRawSteeringForce (force, elapsedTime);
+    // const Vec3 adjustedForce = adjustRawSteeringForce (force, elapsedTime);
 
     // enforce limit on magnitude of steering force
-    const Vec3 clippedForce = adjustedForce.truncateLength (maxForce ());
+    const Vec3 clippedForce = force.truncateLength (maxForce ());
 
     // compute acceleration and velocity
     Vec3 newAcceleration = (clippedForce / mass());

@@ -73,8 +73,7 @@ set(OpenSteer_Sources
    src/SimpleVehicle.cpp
    src/TerrainRayTest.cpp
    src/Vec3.cpp
-   src/Vec3Utilities.cpp
-   src/PackedProximityDB.cpp)
+   src/Vec3Utilities.cpp)
 
 set(OpenSteer_Misc
    third-party/glfw/deps/glad.c
@@ -87,17 +86,8 @@ set(OpenSteer_Misc
    test/PolylineSegmentedPathwaySingleRadiusTest.h
    test/SharedPointerTest.h
    win32/resource.h
-   plugins/Boids.cpp
-   plugins/CaptureTheFlag.cpp
-   plugins/LowSpeedTurn.cpp
-   plugins/MapDrive.cpp
-   plugins/MultiplePursuit.cpp
-   plugins/OneTurning.cpp
-   plugins/Pedestrian.cpp
-   plugins/PedestriansWalkingAnEight.cpp
-   plugins/Soccer.cpp
    plugins/BoidsBaseline.cpp
-   plugins/BoidsNoGraphics.cpp)
+   plugins/BoidsOpt.cpp)
 
 set(OpenSteer_Tests
    test/TestMain.cpp)

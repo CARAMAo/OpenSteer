@@ -35,16 +35,14 @@
 //
 // ----------------------------------------------------------------------------
 
-    
 #include <chrono>
-#include <thread>
 #include <sstream>
-#include <fstream>
 #include "OpenSteer/SimpleVehicle.h"
 #include "OpenSteer/OpenSteerDemo.h"
 #include "OpenSteer/Proximity.h"
 #include "OpenSteer/Color.h"
 #include "OpenSteer/UnusedParameter.h"
+#include "OpenSteer/PackedProximityDB.h"
 
 #ifdef WIN32
 // Windows defines these as macros :(
@@ -56,11 +54,6 @@
 #include <iomanip> // for setprecision
 #include <limits> // for numeric_limits::max()
 #endif // NO_LQ_BIN_STATS
-
-#define N_BOIDS 800
-#define N_STEPS 1
-#define debug false
-#define SELECTED 4
 
 namespace {
 
@@ -75,7 +68,6 @@ namespace {
     typedef OpenSteer::AbstractProximityDatabase<AbstractVehicle*> ProximityDatabase;
     typedef OpenSteer::AbstractTokenForProximityDatabase<AbstractVehicle*> ProximityToken;
 
-
     // ----------------------------------------------------------------------------
 
 
@@ -86,23 +78,6 @@ namespace {
         // type for a flock: an STL vector of Boid pointers
         typedef std::vector<Boid*> groupType;
 
-        //*** flocking parameters
-        constexpr static float separationRadius =  5.0f;
-        constexpr static float separationAngle  = -0.707f;
-        constexpr static float separationWeight =  12.0f;
-
-        constexpr static float alignmentRadius = 7.5f;
-        constexpr static float alignmentAngle  = 0.7f;
-        constexpr static float alignmentWeight = 8.0f;
-
-        constexpr static float cohesionRadius = 9.0f;
-        constexpr static float cohesionAngle  = -0.15f;
-        constexpr static float cohesionWeight = 8.0f;
-
-        constexpr static float maxRadius = 9.0;
-
-        double neighborCheckTime = 0.0;
-        double stepTime = 0.0;
 
         // constructor
         Boid (ProximityDatabase& pd)
@@ -161,74 +136,75 @@ namespace {
         // per frame simulation update
         void update (const float currentTime, const float elapsedTime)
         {
-           
             OPENSTEER_UNUSED_PARAMETER(currentTime);
-            high_resolution_clock::time_point neighbor_start = high_resolution_clock::now();
-            neighborCheck();
-            high_resolution_clock::time_point neighbor_end = high_resolution_clock::now();
 
-            high_resolution_clock::time_point steering_start = high_resolution_clock::now();
             // steer to flock and avoid obstacles if any
-            applySteeringForce ( steerToFlock(), elapsedTime);
-            high_resolution_clock::time_point steering_end = high_resolution_clock::now();
-        
+            applySteeringForce (steerToFlock (), elapsedTime);
+
             // wrap around to contrain boid within the spherical boundary
             sphericalWrapAround ();
+
             // notify proximity database that our position has changed
             proximityToken->updateForNewPosition (position());
-
-            OpenSteerDemo::neighborCheckTime += std::chrono::duration_cast<std::chrono::nanoseconds>(neighbor_end - neighbor_start).count() * 1e-6;
-            OpenSteerDemo::stepTime += std::chrono::duration_cast<std::chrono::nanoseconds>(steering_end - steering_start).count() * 1e-6;
         }
 
-
-        void neighborCheck(){
-            // find all flockmates within maxRadius using proximity database
-            neighbors.clear();
-            proximityToken->findNeighbors (position(), maxRadius, neighbors);
-
-             #ifndef NO_LQ_BIN_STATS
-            // maintain stats on max/min/ave neighbors per boids
-            size_t count = neighbors.size();
-            if (maxNeighbors < count) maxNeighbors = count;
-            if (minNeighbors > count) minNeighbors = count;
-            totalNeighbors += count;
-            #endif // NO_LQ_BIN_STATS
-        }
 
         // basic flocking
-        Vec3 steerToFlock ()
+        Vec3 steerToFlock (void)
         {
             // avoid obstacles if needed
             // XXX this should probably be moved elsewhere
             const Vec3 avoidance = steerToAvoidObstacles (1.0f, obstacles);
             if (avoidance != Vec3::zero) return avoidance;
 
+            const float separationRadius =  OpenSteerDemo::queryRadius > 0. ? OpenSteerDemo::queryRadius : 5.0;
+            const float separationAngle  = -0.707f;
+            const float separationWeight =  12.0f;
+
+            const float alignmentRadius = OpenSteerDemo::queryRadius > 0. ? OpenSteerDemo::queryRadius : 7.5f;
+            const float alignmentAngle  = 0.7f;
+            const float alignmentWeight = 8.0f;
+
+            const float cohesionRadius = OpenSteerDemo::queryRadius > 0. ? OpenSteerDemo::queryRadius : 9.0f;
+            const float cohesionAngle  = -0.15f;
+            const float cohesionWeight = 8.0f;
+
+            const float maxRadius = maxXXX (separationRadius,
+                                            maxXXX (alignmentRadius,
+                                                    cohesionRadius));
+
+           
+            neighbors.clear();
+
+            proximityToken->findNeighbors(position(), maxRadius, neighbors);
+
+
+            
+    #ifndef NO_LQ_BIN_STATS
+            // maintain stats on max/min/ave neighbors per boids
+            size_t count = neighbors.size();
+            if (maxNeighbors < count) maxNeighbors = count;
+            if (minNeighbors > count) minNeighbors = count;
+            totalNeighbors += count;
+    #endif // NO_LQ_BIN_STATS
+
             // determine each of the three component behaviors of flocking
             const Vec3 separation = steerForSeparation (separationRadius,
-                                                     separationAngle,
-                                                    neighbors);
-
+                                                        separationAngle,
+                                                        neighbors);
             const Vec3 alignment  = steerForAlignment  (alignmentRadius,
                                                         alignmentAngle,
                                                         neighbors);
-            
             const Vec3 cohesion   = steerForCohesion   (cohesionRadius,
                                                         cohesionAngle,
                                                         neighbors);
-            
+    
+           
+
             // apply weights to components (save in variables for annotation)
             const Vec3 separationW = separation * separationWeight;
             const Vec3 alignmentW = alignment * alignmentWeight;
             const Vec3 cohesionW = cohesion * cohesionWeight;
-
-            if(this == OpenSteerDemo::selectedVehicle && debug)
-                std::cout<<separationW + alignmentW + cohesionW<<std::endl<<maxRadius<<std::endl;
-            // annotation *** tmp disabled
-            // const float s = 0.1;
-            // annotationLine (position, position + (separationW * s), gRed);
-            // annotationLine (position, position + (alignmentW  * s), gOrange);
-            // annotationLine (position, position + (cohesionW   * s), gYellow);
 
             return separationW + alignmentW + cohesionW;
         }
@@ -338,9 +314,8 @@ namespace {
     #endif // NO_LQ_BIN_STATS
     };
 
-
     AVGroup Boid::neighbors;
-    float Boid::worldRadius = 50.0f;
+    float Boid::worldRadius;
     ObstacleGroup Boid::obstacles;
     #ifndef NO_LQ_BIN_STATS
     size_t Boid::minNeighbors, Boid::maxNeighbors, Boid::totalNeighbors;
@@ -353,26 +328,28 @@ namespace {
     class BoidsBaselinePlugIn : public PlugIn
     {
     public:
-
+        
         const char* name (void) {return "BoidsBaseline";}
 
-        float selectionOrderSortKey (void) {return 0.3f;}
+        float selectionOrderSortKey (void) {return 0.00000001f;}
 
         virtual ~BoidsBaselinePlugIn() {} // be more "nice" to avoid a compiler warning
 
         void open (void)
         {
+            
+            Boid::worldRadius = OpenSteerDemo::worldRadius > 0. ? OpenSteerDemo::worldRadius : 50.0f;
+            
             // make the database used to accelerate proximity queries
-            cyclePD = 0;
+            cyclePD = -1;
             nextPD ();
-
-            //switch to brute force pd
-            //nextPD();
-
+            
+          
             // make default-sized flock
             population = 0;
-            for (int i = 0; i < N_BOIDS; i++) addBoidToFlock ();
+            for (int i = 0; i < OpenSteerDemo::numAgents; i++) addBoidToFlock ();
 
+           
             // initialize camera
             OpenSteerDemo::init3dCamera (*OpenSteerDemo::selectedVehicle);
             OpenSteerDemo::camera.mode = Camera::cmFixed;
@@ -382,13 +359,6 @@ namespace {
             OpenSteerDemo::camera.aimLeadTime = 0.5;
             OpenSteerDemo::camera.povOffset.set (0, 0.5, -2);
 
-            // set up obstacles
-            initObstacles ();
-            //log file
-            std::ofstream logFile;
-            logFile.open(std::to_string(N_BOIDS)+"logbase.csv",std::ios::app);
-            logFile<<"Step;Neighbor check avg time (ms);Steering avg time (ms);"<<std::endl;
-            logFile.close();
         }
 
         void update (const float currentTime, const float elapsedTime)
@@ -397,43 +367,20 @@ namespace {
             Boid::maxNeighbors = Boid::totalNeighbors = 0;
             Boid::minNeighbors = std::numeric_limits<int>::max();
     #endif // NO_LQ_BIN_STATS
-            
-            OpenSteerDemo::neighborCheckTime = 0.f;
-            OpenSteerDemo::stepTime = 0.f;
-            OpenSteerDemo::totalStepTime = 0.f;
 
-            high_resolution_clock::time_point step_start = high_resolution_clock::now();
             // update flock simulation for each boid
             for (iterator i = flock.begin(); i != flock.end(); i++)
             {
                 (**i).update (currentTime, elapsedTime);
             }
-            high_resolution_clock::time_point step_end = high_resolution_clock::now();
-            
-            OpenSteerDemo::totalStepTime = std::chrono::duration_cast<std::chrono::nanoseconds>(step_end - step_start).count() * 1e-6;
-       
-            if(OpenSteer::OpenSteerDemo::clock.getStepCount()== N_STEPS){
-                std::cout<<"Total step time:"<<OpenSteerDemo::totalStepTime*1e-3<<"s"<<std::endl;
-                reset();
-                OpenSteer::OpenSteerDemo::clock.setStepCount(0);
-                OpenSteer::OpenSteerDemo::clock.togglePausedState();
-                std::cout<<"Steering Time (per step):"<<OpenSteerDemo::stepTime/N_STEPS<<"ms\n";
-                std::cout<<"Neighbor Check Time (per step):"<<OpenSteerDemo::neighborCheckTime/N_STEPS<<"ms\n";
 
-                
-            }else{
-                //log file
-                std::ofstream logFile;
-                logFile.open( std::to_string(N_BOIDS)+"logbase.csv",std::ios::app);
-                logFile<<OpenSteer::OpenSteerDemo::clock.getStepCount()<<";"<<OpenSteerDemo::neighborCheckTime<<";"<<OpenSteerDemo::stepTime<<";"<<OpenSteerDemo::totalStepTime<<";"<<std::endl;
-                logFile.close();
-            }
-            
+
+           
         }
 
         void redraw (const float currentTime, const float elapsedTime)
         {
-            // selected vehicle (user can mouse click to select another)
+          // selected vehicle (user can mouse click to select another)
             AbstractVehicle* selected = OpenSteerDemo::selectedVehicle;
 
             // vehicle nearest mouse (to be highlighted)
@@ -450,42 +397,11 @@ namespace {
 
             // highlight selected vehicle
             OpenSteerDemo::drawCircleHighlightOnVehicle (selected, 1, gGray50);
-            // display status in the upper left corner of the window
-            std::ostringstream status;
-            status << "[F1/F2] " << population << " boids";
-            status << "\n[F3]    PD type: ";
-            switch (cyclePD)
-            {
-            case 0: status << "LQ bin lattice"; break;
-            case 1: status << "brute force";    break;
-            }
-            status << "\n[F4]    Obstacles: ";
-            switch (constraint)
-            {
-            case none:
-                status << "none (wrap-around at sphere boundary)" ; break;
-            case insideSphere:
-                status << "inside a sphere" ; break;
-            case outsideSphere:
-                status << "inside a sphere, outside another" ; break;
-            case outsideSpheres:
-                status << "inside a sphere, outside several" ; break;
-            case outsideSpheresNoBig:
-                status << "outside several spheres, with wrap-around" ; break;
-            case rectangle:
-                status << "inside a sphere, with a rectangle" ; break;
-            case rectangleNoBig:
-                status << "a rectangle, with wrap-around" ; break;
-            case outsideBox:
-                status << "inside a sphere, outside a box" ; break;
-            case insideBox:
-                status << "inside a box" ; break;
-            }
-            const float h = drawGetWindowHeight ();
-            const Vec3 screenLocation (10, h-50, 2);
-            draw2dTextAt2dLocation (status, screenLocation, gGray80, drawGetWindowWidth(), drawGetWindowHeight());
 
-            drawObstacles ();
+            
+            const float h = drawGetWindowHeight ();
+            const Vec3 screenLocation (10, h-50, 0);
+
             
         }
 
@@ -510,6 +426,10 @@ namespace {
             // make camera jump immediately to new position
             OpenSteerDemo::camera.doNotSmoothNextMove ();
 
+            OpenSteerDemo::clock.setStepCount(0);
+            OpenSteerDemo::clock.setPausedState(false);
+            OpenSteerDemo::totalStepTime = 0.f;
+            OpenSteerDemo::stepTime = 0.f;
         }
 
         // for purposes of demonstration, allow cycling through various
@@ -529,7 +449,7 @@ namespace {
                     const Vec3 center;
                     const float div = 10.0f;
                     const Vec3 divisions (div, div, div);
-                    const float diameter = Boid::worldRadius * 1.1f * 2;
+                    const float diameter = Boid::worldRadius * 2.;
                     const Vec3 dimensions (diameter, diameter, diameter);
                     typedef LQProximityDatabase<AbstractVehicle*> LQPDAV;
                     pd = new LQPDAV (center, dimensions, divisions);
@@ -556,29 +476,9 @@ namespace {
             case 1:  addBoidToFlock ();         break;
             case 2:  removeBoidFromFlock ();    break;
             case 3:  nextPD ();                 break;
-            case 4:  nextBoundaryCondition ();  break;
-            case 5:  printLQbinStats ();        break;
             }
         }
 
-        void printLQbinStats (void)
-        {
-    #ifndef NO_LQ_BIN_STATS
-            int min, max; float average;
-            Boid& aBoid = **(flock.begin());
-            aBoid.proximityToken->getBinPopulationStats (min, max, average);
-            std::cout << std::setprecision (2)
-                      << std::setiosflags (std::ios::fixed);
-            std::cout << "Bin populations: min, max, average: "
-                      << min << ", " << max << ", " << average
-                      << " (non-empty bins)" << std::endl; 
-            std::cout << "Boid neighbors:  min, max, average: "
-                      << Boid::minNeighbors << ", "
-                      << Boid::maxNeighbors << ", "
-                      << ((float)Boid::totalNeighbors) / ((float)population)
-                      << std::endl;
-    #endif // NO_LQ_BIN_STATS
-        }
      
         void printMiniHelpForFunctionKeys (void)
         {
@@ -598,9 +498,7 @@ namespace {
             population++;
             Boid* boid = new Boid (*pd);
             flock.push_back (boid);
-            if (population == SELECTED + 1)
-                OpenSteerDemo::selectedVehicle = boid;
-            
+            if (population == 1) OpenSteerDemo::selectedVehicle = boid;
         }
 
         void removeBoidFromFlock (void)
@@ -626,220 +524,21 @@ namespace {
 
         // flock: a group (STL vector) of pointers to all boids
         Boid::groupType flock;
-        typedef Boid::groupType::iterator iterator;
+        typedef Boid::groupType::const_iterator iterator;
 
         // pointer to database used to accelerate proximity queries
         ProximityDatabase* pd;
-
+        
         // keep track of current flock size
         int population;
 
         // which of the various proximity databases is currently in use
         int cyclePD;
 
-        // --------------------------------------------------------
-        // the rest of this plug-in supports the various obstacles:
-        // --------------------------------------------------------
 
-        // enumerate demos of various constraints on the flock
-        enum ConstraintType {none, insideSphere,
-                             outsideSphere, outsideSpheres, outsideSpheresNoBig,
-                             rectangle, rectangleNoBig,
-                             outsideBox, insideBox};
-
-        ConstraintType constraint;
-
-        // select next "boundary condition / constraint / obstacle"
-        void nextBoundaryCondition (void)
-        {
-            constraint = (ConstraintType) ((int) constraint + 1);
-            updateObstacles ();
-        }
-
-        class SO : public SphereObstacle
-        {void draw (const bool filled, const Color& color, const Vec3& vp) const
-            {drawSphereObstacle (*this, 10.0f, filled, color, vp);}};
-
-        class RO : public RectangleObstacle
-        {void draw (const bool, const Color& color, const Vec3&) const
-            {tempDrawRectangle (*this, color);}};
-
-        class BO : public BoxObstacle
-        {void draw (const bool, const Color& color, const Vec3&) const
-            {tempDrawBox (*this, color);}};
-
-        RO bigRectangle;
-        BO outsideBigBox, insideBigBox;
-        SO insideBigSphere, outsideSphere0, outsideSphere1, outsideSphere2,
-           outsideSphere3, outsideSphere4, outsideSphere5, outsideSphere6;
-
-
-        void initObstacles (void)
-        {
-            constraint = none;
-
-            insideBigSphere.radius = Boid::worldRadius;
-            insideBigSphere.setSeenFrom (Obstacle::inside);
-
-            outsideSphere0.radius = Boid::worldRadius * 0.5f;
-
-            const float r = Boid::worldRadius * 0.33f;
-            outsideSphere1.radius = r;
-            outsideSphere2.radius = r;
-            outsideSphere3.radius = r;
-            outsideSphere4.radius = r;
-            outsideSphere5.radius = r;
-            outsideSphere6.radius = r;
-
-            const float p = Boid::worldRadius * 0.5f;
-            const float m = -p;
-            const float z = 0.0f;
-            outsideSphere1.center.set (p, z, z);
-            outsideSphere2.center.set (m, z, z);
-            outsideSphere3.center.set (z, p, z);
-            outsideSphere4.center.set (z, m, z);
-            outsideSphere5.center.set (z, z, p);
-            outsideSphere6.center.set (z, z, m);
-
-            const Vec3 tiltF = Vec3 (1.0f, 1.0f, 0.0f).normalize ();
-            const Vec3 tiltS (0.0f, 0.0f, 1.0f);
-            const Vec3 tiltU = Vec3 (-1.0f, 1.0f, 0.0f).normalize ();
-
-            bigRectangle.width = 50.0f;
-            bigRectangle.height = 80.0f;
-            bigRectangle.setSeenFrom (Obstacle::both);
-            bigRectangle.setForward (tiltF);
-            bigRectangle.setSide (tiltS);
-            bigRectangle.setUp (tiltU);
-
-            outsideBigBox.width = 50.0f;
-            outsideBigBox.height = 80.0f;
-            outsideBigBox.depth = 20.0f;
-            outsideBigBox.setForward (tiltF);
-            outsideBigBox.setSide (tiltS);
-            outsideBigBox.setUp (tiltU);
-
-            insideBigBox = outsideBigBox;
-            insideBigBox.setSeenFrom (Obstacle::inside);
-
-            updateObstacles ();
-        }
-
-
-        // update Boid::obstacles list when constraint changes
-        void updateObstacles (void)
-        {
-            // first clear out obstacle list
-            Boid::obstacles.clear ();
-
-            // add back obstacles based on mode
-            switch (constraint)
-            {
-            default:
-                // reset for wrap-around, fall through to first case:
-                constraint = none;
-            case none:
-                break;
-            case insideSphere:
-                Boid::obstacles.push_back (&insideBigSphere);
-                break;
-            case outsideSphere:
-                Boid::obstacles.push_back (&insideBigSphere);
-                Boid::obstacles.push_back (&outsideSphere0);
-                break;
-            case outsideSpheres:
-                Boid::obstacles.push_back (&insideBigSphere);
-            case outsideSpheresNoBig:
-                Boid::obstacles.push_back (&outsideSphere1);
-                Boid::obstacles.push_back (&outsideSphere2);
-                Boid::obstacles.push_back (&outsideSphere3);
-                Boid::obstacles.push_back (&outsideSphere4);
-                Boid::obstacles.push_back (&outsideSphere5);
-                Boid::obstacles.push_back (&outsideSphere6);
-                break;
-            case rectangle:
-                Boid::obstacles.push_back (&insideBigSphere);
-                Boid::obstacles.push_back (&bigRectangle);
-            case rectangleNoBig:
-                Boid::obstacles.push_back (&bigRectangle);
-                break;
-            case outsideBox:
-                Boid::obstacles.push_back (&insideBigSphere);
-                Boid::obstacles.push_back (&outsideBigBox);
-                break;
-            case insideBox:
-                Boid::obstacles.push_back (&insideBigBox);
-                break;
-            }
-        }
-
-
-        void drawObstacles (void)
-        {
-            for (ObstacleIterator o = Boid::obstacles.begin();
-                 o != Boid::obstacles.end();
-                 o++)
-            {
-                (**o).draw (false, // draw in wireframe
-                            ((*o == &insideBigSphere) ?
-                             Color (0.2f, 0.2f, 0.4f) :
-                             Color (0.1f, 0.1f, 0.2f)),
-                            OpenSteerDemo::camera.position ());
-            }
-        }
-
-
-        static void tempDrawRectangle (const RectangleObstacle& rect, const Color& color)
-        {
-            float w = rect.width / 2;
-            float h = rect.height / 2;
-
-            Vec3 v1 = rect.globalizePosition (Vec3 ( w,  h, 0));
-            Vec3 v2 = rect.globalizePosition (Vec3 (-w,  h, 0));
-            Vec3 v3 = rect.globalizePosition (Vec3 (-w, -h, 0));
-            Vec3 v4 = rect.globalizePosition (Vec3 ( w, -h, 0));
-
-            drawLine (v1, v2, color);
-            drawLine (v2, v3, color);
-            drawLine (v3, v4, color);
-            drawLine (v4, v1, color);
-        }
-
-
-        static void tempDrawBox (const BoxObstacle& box, const Color& color)
-        {
-            const float w = box.width / 2;
-            const float h = box.height / 2;
-            const float d = box.depth / 2;
-
-            const Vec3 v1 = box.globalizePosition (Vec3 ( w,  h,  d));
-            const Vec3 v2 = box.globalizePosition (Vec3 (-w,  h,  d));
-            const Vec3 v3 = box.globalizePosition (Vec3 (-w, -h,  d));
-            const Vec3 v4 = box.globalizePosition (Vec3 ( w, -h,  d));
-
-            const Vec3 v5 = box.globalizePosition (Vec3 ( w,  h, -d));
-            const Vec3 v6 = box.globalizePosition (Vec3 (-w,  h, -d));
-            const Vec3 v7 = box.globalizePosition (Vec3 (-w, -h, -d));
-            const Vec3 v8 = box.globalizePosition (Vec3 ( w, -h, -d));
-
-            drawLine (v1, v2, color);
-            drawLine (v2, v3, color);
-            drawLine (v3, v4, color);
-            drawLine (v4, v1, color);
-
-            drawLine (v5, v6, color);
-            drawLine (v6, v7, color);
-            drawLine (v7, v8, color);
-            drawLine (v8, v5, color);
-
-            drawLine (v1, v5, color);
-            drawLine (v2, v6, color);
-            drawLine (v3, v7, color);
-            drawLine (v4, v8, color);
-        }
     };
 
-
+  
     BoidsBaselinePlugIn gBoidsBaselinePlugIn;
 
 
