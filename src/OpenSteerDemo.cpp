@@ -109,7 +109,7 @@ double OpenSteer::OpenSteerDemo::stepTime = 0.;
 double OpenSteer::OpenSteerDemo::totalStepTime = 0.;
 
 int OpenSteer::OpenSteerDemo::numAgents = 800;
-int OpenSteer::OpenSteerDemo::numSteps = 0;
+int OpenSteer::OpenSteerDemo::numSteps = 100;
 float OpenSteer::OpenSteerDemo::worldRadius = 0.;
 float OpenSteer::OpenSteerDemo::queryRadius = 0.;
 bool OpenSteer::OpenSteerDemo::gui = true;
@@ -218,7 +218,7 @@ OpenSteer::OpenSteerDemo::initialize (int argc,char** argv)
             std::cout<<"-opt\trun AVX version\n";
             std::cout<<"-no-gui\trun without gui\n";
             std::cout<<"-n <number-of-agents>\tdefaults to 800 if not specified\n";
-            std::cout<<"-s <number-of-steps>\truns indefinitely if not specified\n";
+            std::cout<<"-s <number-of-steps>\tdefaults to 50 if not specified\n";
             std::cout<<"-w <simulation-environment-radius>\tdefaults to 50.0 if not specified\n";
             std::cout<<"-q <neighborhood-query-radius>\tdefaults to 9.0 if not specified\n";
             
@@ -274,6 +274,7 @@ OpenSteer::OpenSteerDemo::updateSimulationAndRedraw (void)
                             clock.getElapsedRealTime ());
 
     if(OpenSteerDemo::numSteps > 0 && clock.getStepCount() == OpenSteerDemo::numSteps && !clock.getPausedState() ){
+        std::cout<<"Agents;NumSteps;WorldRadius;QueryRadius;Time(s)\n";
         std::cout<<OpenSteerDemo::numAgents<<";"
         <<OpenSteerDemo::numSteps<<";"
         << (OpenSteerDemo::worldRadius > 0.f ? OpenSteerDemo::worldRadius : 50.f)<<";"

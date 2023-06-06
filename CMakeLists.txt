@@ -53,8 +53,7 @@ set(OpenSteer_Headers
    include/OpenSteer/UnusedParameter.h
    include/OpenSteer/Utilities.h
    include/OpenSteer/Vec3.h
-   include/OpenSteer/Vec3Utilities.h
-   include/OpenSteer/PackedProximityDB.h)
+   include/OpenSteer/Vec3Utilities.h)
 
 set(OpenSteer_Sources
    src/Camera.cpp
