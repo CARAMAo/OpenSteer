@@ -41,7 +41,6 @@
 #include "OpenSteer/Proximity.h"
 #include "OpenSteer/Color.h"
 #include "OpenSteer/UnusedParameter.h"
-#include "OpenSteer/PackedProximityDB.h"
 
 #ifdef WIN32
 // Windows defines these as macros :(
@@ -59,7 +58,6 @@ namespace {
     // Include names declared in the OpenSteer namespace into the
     // namespaces to search to find names.
     using namespace OpenSteer;
-    using std::chrono::high_resolution_clock;
     
 
 class BoidsSimulation{

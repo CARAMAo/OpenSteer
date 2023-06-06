@@ -42,7 +42,6 @@
 #include "OpenSteer/Proximity.h"
 #include "OpenSteer/Color.h"
 #include "OpenSteer/UnusedParameter.h"
-#include "OpenSteer/PackedProximityDB.h"
 
 #ifdef WIN32
 // Windows defines these as macros :(
