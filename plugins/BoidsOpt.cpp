@@ -134,6 +134,17 @@ class BoidsSimulation{
             init(numBoids);
         }
 
+        void step(float deltaTime){
+
+            calculateHash();
+
+            sortBoidsAndLoadPacks();
+
+            calculateSteering();
+
+            updatePositions(deltaTime);
+        }
+
         void init(int numBoids){
             
 
@@ -195,16 +206,6 @@ class BoidsSimulation{
             }
 
         }
-        void step(float deltaTime){
-
-            calculateHash();
-
-            sortBoidsAndLoadPacks();
-
-            calculateSteering();
-
-            updatePositions(deltaTime);
-        }
 
         private:
 
@@ -237,7 +238,7 @@ class BoidsSimulation{
         void sortBoidsAndLoadPacks(){
             
             for(int i = 0; i < numBoids; i++){
-                boidIndex[i];
+                boidIndex[i] = i;
             }
            
             //sort agents based on their hash values
